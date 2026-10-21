@@ -21,6 +21,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "https://examloop24.vercel.app",
         "https://examloop-snowy.vercel.app",
     ],
     allow_origin_regex=r"https://.*\.vercel\.app",
@@ -38,6 +39,15 @@ app.include_router(tests.router)
 app.include_router(attempts.router)
 app.include_router(analytics.router)
 app.include_router(settings_router.router)
+
+@app.get("/")
+def root():
+    return {
+        "status": "online",
+        "app": settings.app_name,
+        "docs": "/docs",
+        "health": "/api/health"
+    }
 
 @app.get("/api/health")
 def health_check():
