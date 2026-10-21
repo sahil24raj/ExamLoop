@@ -1,7 +1,12 @@
 import { createClient, SupabaseClient, Session, User } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabaseUrl = 
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 
+  "https://evbcfypbwitqlkrsjsxf.supabase.co";
+
+const supabaseAnonKey = 
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2YmNmeXBid2l0cWxrcnNqc3hmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxMjA3NjMsImV4cCI6MjEwMTY5Njc2M30.TUxqGUd0_vcOxdGovaDNrEJ9PJebajQthBSIddb2wPU";
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 

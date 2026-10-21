@@ -1,6 +1,10 @@
 import { getSupabaseAccessToken } from "@/lib/supabase";
 
-const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const RAW_API_BASE = 
+  process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
+    ? "https://examloop.onrender.com"
+    : "http://127.0.0.1:8000");
 const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
 export interface Subject {
