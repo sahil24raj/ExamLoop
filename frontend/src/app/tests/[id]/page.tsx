@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef, Suspense } from "react";
+import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -28,7 +28,7 @@ export default function TestTakingPage() {
         <div className="min-h-screen bg-[#060807] flex items-center justify-center p-4">
           <div className="flex items-center gap-3 text-[#A7B8AE] text-sm">
             <Loader2 className="w-5 h-5 animate-spin text-[#24EACE]" />
-            Initializing secure examination environment...
+            Initializing examination workspace...
           </div>
         </div>
       }
@@ -37,6 +37,124 @@ export default function TestTakingPage() {
     </Suspense>
   );
 }
+
+// Dedicated isolated countdown timer component that avoids re-rendering the whole page every 1s
+const ExamTimerDisplay = React.memo(function ExamTimerDisplay({
+  initialSeconds,
+  onTick
+}: {
+  initialSeconds: number;
+  onTick: (delta: number) => void;
+}) {
+  const [secondsRemaining, setSecondsRemaining] = useState(initialSeconds);
+
+  useEffect(() => {
+    setSecondsRemaining(initialSeconds);
+  }, [initialSeconds]);
+
+  useEffect(() => {
+    if (initialSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setSecondsRemaining((prev) => {
+        const next = prev > 0 ? prev - 1 : 0;
+        return next;
+      });
+      onTick(1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [initialSeconds, onTick]);
+
+  if (initialSeconds <= 0) {
+    return (
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-[#142019] text-[#A7B8AE] border border-[#26382D]">
+        <Clock className="w-3.5 h-3.5 text-[#24EACE]" />
+        Untimed
+      </div>
+    );
+  }
+
+  const mins = Math.floor(secondsRemaining / 60);
+  const secs = secondsRemaining % 60;
+  const timeStr = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  const isUrgent = secondsRemaining > 0 && secondsRemaining < 300;
+
+  return (
+    <div
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold border transition ${
+        isUrgent
+          ? "bg-[#261012] text-[#F87171] border-[#542125] animate-pulse"
+          : "bg-[#142019] text-[#A3FF70] border-[#26382D]"
+      }`}
+    >
+      <Clock className="w-3.5 h-3.5 text-[#24EACE]" />
+      {timeStr}
+    </div>
+  );
+});
+
+// High-performance subjective input box with local state to eliminate keystroke lag
+interface SubjectiveAnswerBoxProps {
+  questionId: string;
+  initialText: string;
+  subtype?: string;
+  onCommit: (qId: string, text: string) => void;
+}
+
+const SubjectiveAnswerBox = React.memo(function SubjectiveAnswerBox({
+  questionId,
+  initialText,
+  subtype,
+  onCommit
+}: SubjectiveAnswerBoxProps) {
+  const [text, setText] = useState(initialText || "");
+  const textRef = useRef(initialText || "");
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setText(initialText || "");
+    textRef.current = initialText || "";
+  }, [questionId, initialText]);
+
+  const handleChange = (val: string) => {
+    setText(val);
+    textRef.current = val;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onCommit(questionId, val);
+    }, 350);
+  };
+
+  const handleBlur = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    onCommit(questionId, textRef.current);
+  };
+
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  const charCount = text.length;
+
+  return (
+    <div className="space-y-3 pt-2">
+      <div className="flex items-center justify-between text-xs text-[#A7B8AE]">
+        <span>Type your technical explanation:</span>
+        <span className="font-mono text-[#A7B8AE]">
+          {wordCount} words • {charCount} chars
+        </span>
+      </div>
+      <textarea
+        rows={subtype === "long" ? 10 : subtype === "short" ? 7 : 4}
+        value={text}
+        onChange={(e) => handleChange(e.target.value)}
+        onBlur={handleBlur}
+        placeholder="Write a clear, structured response. Credit is awarded based on semantic accuracy against course rubrics."
+        className="w-full p-4 rounded-xl border border-[#26382D] text-sm font-sans leading-relaxed text-[#F9F9F9] focus:outline-hidden focus:ring-2 focus:ring-[#24EACE] focus:border-[#24EACE] transition bg-[#060807] placeholder:text-[#A7B8AE]/60"
+      />
+      <div className="flex items-center justify-between text-[11px] text-[#A7B8AE]">
+        <span>Answers are evaluated on conceptual completeness, not rigid length.</span>
+        <span>Autosaves as you type</span>
+      </div>
+    </div>
+  );
+});
 
 function TestTakingContent() {
   const params = useParams();
@@ -51,10 +169,14 @@ function TestTakingContent() {
   const [submitting, setSubmitting] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState<number>(20 * 60);
-  const [timeSpentSeconds, setTimeSpentSeconds] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Time spent accumulator tracked without triggering whole-page re-renders
+  const timeSpentRef = useRef(0);
+  const handleTimerTick = useCallback((delta: number) => {
+    timeSpentRef.current += delta;
+  }, []);
 
   // Load test data
   useEffect(() => {
@@ -63,7 +185,6 @@ function TestTakingContent() {
       .then((data) => {
         setTestData(data);
         setAnswers(data.saved_answers || {});
-        setSecondsRemaining(data.duration_minutes * 60);
       })
       .catch((err) => {
         setLoadError(err.message || "Failed to load test");
@@ -71,26 +192,9 @@ function TestTakingContent() {
       .finally(() => setLoading(false));
   }, [testId]);
 
-  // Timer countdown
-  useEffect(() => {
-    if (loading || !testData) return;
-    const timer = setInterval(() => {
-      setSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
-      setTimeSpentSeconds((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [loading, testData]);
-
-  // Format time mm:ss
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
   // Autosave handler with debounce
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const triggerAutosave = (qId: string, updatedAnswer: { selected_option_id?: string; answer_text?: string; is_marked_for_review?: boolean }) => {
+  const triggerAutosave = useCallback((qId: string, updatedAnswer: { selected_option_id?: string; answer_text?: string; is_marked_for_review?: boolean }) => {
     if (!testData?.attempt_id) return;
     setSavingStatus("saving");
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -107,7 +211,7 @@ function TestTakingContent() {
         setSavingStatus("idle");
       }
     }, 400);
-  };
+  }, [testData?.attempt_id]);
 
   const handleSelectOption = (optionId: string) => {
     if (!currentQuestion) return;
@@ -117,13 +221,14 @@ function TestTakingContent() {
     triggerAutosave(currentQuestion.id, updated);
   };
 
-  const handleTextChange = (text: string) => {
-    if (!currentQuestion) return;
-    const current = answers[currentQuestion.id] || {};
-    const updated = { ...current, answer_text: text };
-    setAnswers((prev) => ({ ...prev, [currentQuestion.id]: updated }));
-    triggerAutosave(currentQuestion.id, updated);
-  };
+  const handleTextCommit = useCallback((qId: string, text: string) => {
+    setAnswers((prev) => {
+      const current = prev[qId] || {};
+      const updated = { ...current, answer_text: text };
+      triggerAutosave(qId, updated);
+      return { ...prev, [qId]: updated };
+    });
+  }, [triggerAutosave]);
 
   const handleToggleReview = () => {
     if (!currentQuestion) return;
@@ -146,7 +251,7 @@ function TestTakingContent() {
       }));
 
       await api.submitAttempt(testData.attempt_id, {
-        time_spent_seconds: timeSpentSeconds,
+        time_spent_seconds: timeSpentRef.current,
         answers: payloadAnswers
       });
 
@@ -205,6 +310,14 @@ function TestTakingContent() {
     return "Subjective Response";
   };
 
+  const getCompactSubtypeBadge = (subtype?: string, type?: string) => {
+    if (type === "mcq") return "MCQ";
+    if (subtype === "very_short") return "VST";
+    if (subtype === "short") return "SHT";
+    if (subtype === "long") return "LNG";
+    return "SUB";
+  };
+
   const getSubtypeDescription = (subtype?: string, type?: string) => {
     if (type === "mcq") return "Select the single most accurate option.";
     if (subtype === "very_short") return "State concise definition, factual point, or key term.";
@@ -212,9 +325,6 @@ function TestTakingContent() {
     if (subtype === "long") return "Provide a thorough technical breakdown with trade-offs & mechanics.";
     return "Write a structured response addressable by rubric criteria.";
   };
-
-  const wordCount = (currentAns.answer_text || "").trim().split(/\s+/).filter(Boolean).length;
-  const charCount = (currentAns.answer_text || "").length;
 
   return (
     <div className="min-h-screen bg-[#060807] text-[#F9F9F9] flex flex-col font-sans selection:bg-[#24EACE] selection:text-[#060807]">
@@ -242,17 +352,11 @@ function TestTakingContent() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Timer */}
-            <div
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold border ${
-                secondsRemaining < 300
-                  ? "bg-[#261012] text-[#F87171] border-[#542125] animate-pulse"
-                  : "bg-[#142019] text-[#A3FF70] border-[#26382D]"
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5 text-[#24EACE]" />
-              {formatTime(secondsRemaining)}
-            </div>
+            {/* Isolated Smooth Timer */}
+            <ExamTimerDisplay
+              initialSeconds={testData.duration_minutes > 0 ? testData.duration_minutes * 60 : 0}
+              onTick={handleTimerTick}
+            />
 
             {/* Autosave status */}
             <div className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[#A7B8AE] font-medium px-2.5 py-1 bg-[#142019] rounded-lg border border-[#26382D]">
@@ -275,7 +379,7 @@ function TestTakingContent() {
                 setSubmitError(null);
                 setShowSubmitModal(true);
               }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] font-bold text-xs shadow-md shadow-[#24EACE]/20 transition active:scale-95"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] font-bold text-xs shadow-md shadow-[#24EACE]/20 transition active:scale-95 cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Submit Test</span>
@@ -313,19 +417,20 @@ function TestTakingContent() {
               </span>
             </div>
 
-            {/* Questions Grid */}
-            <div className="grid grid-cols-5 gap-2">
+            {/* Questions Grid with Compact Subtype Badges */}
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
               {questions.map((q, idx) => {
                 const isCurrent = idx === currentIdx;
                 const a = answers[q.id];
                 const isAnswered = a && (a.selected_option_id || (a.answer_text && a.answer_text.trim().length > 0));
                 const isReview = a?.is_marked_for_review;
+                const subtypeBadge = getCompactSubtypeBadge(q.subjective_subtype, q.question_type);
 
                 return (
                   <button
                     key={q.id}
                     onClick={() => setCurrentIdx(idx)}
-                    className={`h-10 rounded-xl font-semibold text-xs flex items-center justify-center transition relative ${
+                    className={`h-12 rounded-xl font-semibold text-xs flex flex-col items-center justify-center transition relative cursor-pointer ${
                       isCurrent
                         ? "bg-[#24EACE] text-[#060807] font-bold ring-2 ring-[#A3FF70] shadow-md shadow-[#24EACE]/20"
                         : isAnswered
@@ -333,7 +438,12 @@ function TestTakingContent() {
                         : "bg-[#142019] text-[#A7B8AE] hover:bg-[#1B2B22] hover:text-[#F9F9F9] border border-[#26382D]"
                     }`}
                   >
-                    {idx + 1}
+                    <span className="text-xs font-bold leading-none">{idx + 1}</span>
+                    <span className={`text-[9px] uppercase tracking-wider mt-0.5 font-mono ${
+                      isCurrent ? "text-[#060807]/80" : isAnswered ? "text-[#A3FF70]/80" : "text-[#A7B8AE]/70"
+                    }`}>
+                      {subtypeBadge}
+                    </span>
                     {isReview && (
                       <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#FBBF24] rounded-full border border-[#0D1410]" />
                     )}
@@ -387,7 +497,7 @@ function TestTakingContent() {
 
                   <button
                     onClick={handleToggleReview}
-                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-lg transition border ${
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-lg transition border cursor-pointer ${
                       currentAns.is_marked_for_review
                         ? "bg-[#281F0D] text-[#FBBF24] border-[#523F17]"
                         : "bg-[#142019] text-[#A7B8AE] border-[#26382D] hover:text-[#F9F9F9]"
@@ -418,7 +528,7 @@ function TestTakingContent() {
                       <button
                         key={opt.id}
                         onClick={() => handleSelectOption(opt.id)}
-                        className={`w-full text-left p-4 rounded-xl border text-sm font-medium transition flex items-center justify-between gap-3 ${
+                        className={`w-full text-left p-4 rounded-xl border text-sm font-medium transition flex items-center justify-between gap-3 cursor-pointer ${
                           isSelected
                             ? "bg-[#142019] border-2 border-[#24EACE] text-[#F9F9F9] shadow-lg shadow-[#24EACE]/10 ring-1 ring-[#24EACE]"
                             : "bg-[#142019]/60 border-[#26382D] text-[#D0DBD4] hover:border-[#24EACE]/50 hover:bg-[#142019]"
@@ -440,25 +550,13 @@ function TestTakingContent() {
                   })}
                 </div>
               ) : (
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between text-xs text-[#A7B8AE]">
-                    <span>Type your technical explanation:</span>
-                    <span className="font-mono text-[#A7B8AE]">
-                      {wordCount} words • {charCount} chars
-                    </span>
-                  </div>
-                  <textarea
-                    rows={currentQuestion.subjective_subtype === "long" ? 10 : currentQuestion.subjective_subtype === "short" ? 7 : 4}
-                    value={currentAns.answer_text || ""}
-                    onChange={(e) => handleTextChange(e.target.value)}
-                    placeholder="Write a clear, structured response. Credit is awarded based on semantic accuracy against course rubrics."
-                    className="w-full p-4 rounded-xl border border-[#26382D] text-sm font-sans leading-relaxed text-[#F9F9F9] focus:outline-none focus:ring-2 focus:ring-[#24EACE] focus:border-[#24EACE] transition bg-[#060807] placeholder:text-[#A7B8AE]/60"
-                  />
-                  <div className="flex items-center justify-between text-[11px] text-[#A7B8AE]">
-                    <span>Answers are evaluated on conceptual completeness, not rigid length.</span>
-                    <span>Autosaves as you type</span>
-                  </div>
-                </div>
+                <SubjectiveAnswerBox
+                  key={currentQuestion.id}
+                  questionId={currentQuestion.id}
+                  initialText={currentAns.answer_text || ""}
+                  subtype={currentQuestion.subjective_subtype}
+                  onCommit={handleTextCommit}
+                />
               )}
             </div>
 
@@ -467,7 +565,7 @@ function TestTakingContent() {
               <button
                 onClick={() => setCurrentIdx((prev) => Math.max(0, prev - 1))}
                 disabled={currentIdx === 0}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#26382D] text-xs font-semibold text-[#D0DBD4] bg-[#142019] hover:bg-[#1B2B22] disabled:opacity-30 transition"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#26382D] text-xs font-semibold text-[#D0DBD4] bg-[#142019] hover:bg-[#1B2B22] disabled:opacity-30 transition cursor-pointer disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
@@ -480,7 +578,7 @@ function TestTakingContent() {
               {currentIdx < questions.length - 1 ? (
                 <button
                   onClick={() => setCurrentIdx((prev) => Math.min(questions.length - 1, prev + 1))}
-                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#142019] hover:bg-[#1B2B22] text-[#F9F9F9] text-xs font-semibold border border-[#26382D] transition"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#142019] hover:bg-[#1B2B22] text-[#F9F9F9] text-xs font-semibold border border-[#26382D] transition cursor-pointer"
                 >
                   Next
                   <ChevronRight className="w-4 h-4" />
@@ -491,7 +589,7 @@ function TestTakingContent() {
                     setSubmitError(null);
                     setShowSubmitModal(true);
                   }}
-                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] text-xs font-bold shadow-md shadow-[#24EACE]/20 transition"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] text-xs font-bold shadow-md shadow-[#24EACE]/20 transition cursor-pointer"
                 >
                   Finish & Submit
                   <Send className="w-4 h-4" />
@@ -547,14 +645,14 @@ function TestTakingContent() {
               <button
                 onClick={() => setShowSubmitModal(false)}
                 disabled={submitting}
-                className="px-4 py-2 text-xs font-semibold text-[#A7B8AE] hover:text-[#F9F9F9]"
+                className="px-4 py-2 text-xs font-semibold text-[#A7B8AE] hover:text-[#F9F9F9] cursor-pointer"
               >
                 Keep Practicing
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="px-5 py-2.5 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] text-xs font-bold shadow-md shadow-[#24EACE]/20 transition disabled:opacity-50 flex items-center gap-1.5"
+                className="px-5 py-2.5 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] text-xs font-bold shadow-md shadow-[#24EACE]/20 transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
               >
                 {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                 {submitting ? "Evaluating Rubrics..." : "Confirm & Submit"}
@@ -575,7 +673,7 @@ function TestTakingContent() {
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={() => setShowExitModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-[#A7B8AE] hover:text-[#F9F9F9]"
+                className="px-4 py-2 text-xs font-semibold text-[#A7B8AE] hover:text-[#F9F9F9] cursor-pointer"
               >
                 Continue Practice
               </button>
@@ -592,3 +690,4 @@ function TestTakingContent() {
     </div>
   );
 }
+

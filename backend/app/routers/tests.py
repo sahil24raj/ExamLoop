@@ -541,12 +541,102 @@ def create_custom_test(
             config=config_dict
         )
 
-    # 4. Validate & persist questions with rubrics
+    # 4. Strict Quota Enforcement: categorize raw AI questions into subtype pools
+    desired_mcq = payload.mcq_count if payload.mode != "subjective_only" else 0
+    desired_vs = payload.very_short_count if payload.mode != "objective_only" else 0
+    desired_short = payload.short_count if payload.mode != "objective_only" else 0
+    desired_long = payload.long_count if payload.mode != "objective_only" else 0
+
+    pool_mcq = []
+    pool_vs = []
+    pool_short = []
+    pool_long = []
+
+    for item in raw_questions:
+        q_text = item.get("question_text", "").strip()
+        if not q_text:
+            continue
+        q_type = item.get("question_type", "mcq")
+        subj_subtype = item.get("subjective_subtype")
+
+        if q_type == "mcq":
+            opts = item.get("options", [])
+            if opts and len(opts) >= 2:
+                pool_mcq.append(item)
+        elif q_type == "subjective":
+            m = float(item.get("marks", 2))
+            if subj_subtype == "very_short" or (m <= 2 and subj_subtype not in ("short", "long")):
+                item["subjective_subtype"] = "very_short"
+                pool_vs.append(item)
+            elif subj_subtype == "long" or m >= 8:
+                item["subjective_subtype"] = "long"
+                pool_long.append(item)
+            else:
+                item["subjective_subtype"] = "short"
+                pool_short.append(item)
+
+    # Fulfill requested quotas exactly; synthesize dynamically if any pool has fewer than requested
+    marks_cfg = payload.marks_per_type or {"mcq": 2, "very_short": 2, "short": 5, "long": 10}
+    selected_items = []
+
+    # A. MCQs
+    chosen_mcq = pool_mcq[:desired_mcq]
+    if len(chosen_mcq) < desired_mcq:
+        needed = desired_mcq - len(chosen_mcq)
+        synth = synthesize_custom_test_fallback(
+            subject_name=subject.name,
+            topics=topics_data,
+            evidence=evidence,
+            config={**config_dict, "mcq_count": needed, "very_short_count": 0, "short_count": 0, "long_count": 0}
+        )
+        chosen_mcq.extend(synth[:needed])
+    selected_items.extend(chosen_mcq)
+
+    # B. Very Short Questions
+    chosen_vs = pool_vs[:desired_vs]
+    if len(chosen_vs) < desired_vs:
+        needed = desired_vs - len(chosen_vs)
+        synth = synthesize_custom_test_fallback(
+            subject_name=subject.name,
+            topics=topics_data,
+            evidence=evidence,
+            config={**config_dict, "mcq_count": 0, "very_short_count": needed, "short_count": 0, "long_count": 0}
+        )
+        chosen_vs.extend(synth[:needed])
+    selected_items.extend(chosen_vs)
+
+    # C. Short Questions
+    chosen_short = pool_short[:desired_short]
+    if len(chosen_short) < desired_short:
+        needed = desired_short - len(chosen_short)
+        synth = synthesize_custom_test_fallback(
+            subject_name=subject.name,
+            topics=topics_data,
+            evidence=evidence,
+            config={**config_dict, "mcq_count": 0, "very_short_count": 0, "short_count": needed, "long_count": 0}
+        )
+        chosen_short.extend(synth[:needed])
+    selected_items.extend(chosen_short)
+
+    # D. Long Questions
+    chosen_long = pool_long[:desired_long]
+    if len(chosen_long) < desired_long:
+        needed = desired_long - len(chosen_long)
+        synth = synthesize_custom_test_fallback(
+            subject_name=subject.name,
+            topics=topics_data,
+            evidence=evidence,
+            config={**config_dict, "mcq_count": 0, "very_short_count": 0, "short_count": 0, "long_count": needed}
+        )
+        chosen_long.extend(synth[:needed])
+    selected_items.extend(chosen_long)
+
+    # 5. Persist strictly validated questions with corresponding rubrics
     created_questions = []
     seen_texts = set()
     total_raw_marks = 0.0
 
-    for item in raw_questions:
+    for item in selected_items:
         q_text = item.get("question_text", "").strip()
         if not q_text or q_text in seen_texts:
             continue
@@ -554,19 +644,38 @@ def create_custom_test(
 
         q_type = item.get("question_type", "mcq")
         subj_subtype = item.get("subjective_subtype")
-        marks = int(item.get("marks", 2))
+        
+        # Enforce exact marks configured per question type
+        if q_type == "mcq":
+            marks = int(marks_cfg.get("mcq", 2))
+        elif subj_subtype == "very_short":
+            marks = int(marks_cfg.get("very_short", 2))
+        elif subj_subtype == "long":
+            marks = int(marks_cfg.get("long", 10))
+        else:
+            marks = int(marks_cfg.get("short", 5))
+
         total_raw_marks += marks
 
         options = None
         correct_opt = None
         if q_type == "mcq":
             opts = item.get("options", [])
-            if not opts or len(opts) < 2:
-                continue
-            options = opts
-            correct_opt = item.get("correct_option_id")
-            if not any(opt.get("id") == correct_opt for opt in opts):
-                correct_opt = opts[0].get("id")
+            # Normalize option IDs if needed
+            standard_opts = []
+            for opt_idx, opt in enumerate(opts):
+                opt_id = opt.get("id") or chr(65 + opt_idx)
+                # Map opt_a -> A
+                if opt_id.lower().startswith("opt_"):
+                    opt_id = opt_id.split("_")[-1].upper()
+                standard_opts.append({"id": opt_id, "text": opt.get("text", "")})
+            options = standard_opts
+            raw_correct = item.get("correct_option_id", "A")
+            if raw_correct.lower().startswith("opt_"):
+                raw_correct = raw_correct.split("_")[-1].upper()
+            correct_opt = raw_correct
+            if not any(opt.get("id") == correct_opt for opt in options):
+                correct_opt = options[0].get("id")
 
         q_topic_ids = item.get("topic_ids") or target_topic_ids[:1]
 
@@ -600,11 +709,18 @@ def create_custom_test(
         if q_type == "subjective":
             rubric_raw = item.get("rubric_criteria", [])
             if not rubric_raw:
-                # Default rubric if missing
+                half = round(marks / 2.0, 1)
                 rubric_raw = [
-                    {"criterion_id": f"crit_{q.id}_1", "description": "Conceptual correctness and accuracy", "max_marks": marks * 0.6},
-                    {"criterion_id": f"crit_{q.id}_2", "description": "Completeness and technical reasoning", "max_marks": marks * 0.4}
+                    {"criterion_id": f"crit_{q.id}_1", "description": "Core conceptual accuracy and definition", "max_marks": half},
+                    {"criterion_id": f"crit_{q.id}_2", "description": "Technical completeness and explanation", "max_marks": round(marks - half, 1)}
                 ]
+            else:
+                # Ensure criteria max_marks sum to question marks
+                c_sum = sum(float(r.get("max_marks", 1.0)) for r in rubric_raw)
+                scale = (marks / c_sum) if c_sum > 0 else 1.0
+                for r in rubric_raw:
+                    r["max_marks"] = round(float(r.get("max_marks", 1.0)) * scale, 1)
+
             for idx, r in enumerate(rubric_raw):
                 crit = RubricCriterion(
                     id=str(uuid.uuid4()),
