@@ -246,29 +246,40 @@ export interface DashboardMetrics {
 
 // API methods
 export async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.headers || {}),
-    },
-  });
-    if (!res.ok) {
-      let errorMsg = `HTTP Error ${res.status}`;
-      try {
-        const errData = await res.json();
-        if (typeof errData.detail === "string") {
-          errorMsg = errData.detail;
-        } else if (Array.isArray(errData.detail)) {
-          errorMsg = errData.detail.map((d: any) => d.msg ? `${d.loc?.slice(-1)[0] || 'field'}: ${d.msg}` : JSON.stringify(d)).join("; ");
-        } else if (errData.detail) {
-          errorMsg = JSON.stringify(errData.detail);
-        }
-      } catch {
-        // ignore
-      }
-      throw new Error(errorMsg);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options?.headers || {}),
+      },
+    });
+  } catch (netErr: any) {
+    if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+      throw new Error(
+        `Backend server unreachable at ${API_BASE || 'default'}. Please set NEXT_PUBLIC_API_URL in your Vercel settings to your deployed FastAPI backend URL.`
+      );
     }
+    throw new Error(`Cannot connect to Backend at ${API_BASE}. Make sure FastAPI is running (python -m uvicorn backend.app.main:app --port 8000).`);
+  }
+
+  if (!res.ok) {
+    let errorMsg = `HTTP Error ${res.status}`;
+    try {
+      const errData = await res.json();
+      if (typeof errData.detail === "string") {
+        errorMsg = errData.detail;
+      } else if (Array.isArray(errData.detail)) {
+        errorMsg = errData.detail.map((d: any) => d.msg ? `${d.loc?.slice(-1)[0] || 'field'}: ${d.msg}` : JSON.stringify(d)).join("; ");
+      } else if (errData.detail) {
+        errorMsg = JSON.stringify(errData.detail);
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(errorMsg);
+  }
   return res.json();
 }
 
@@ -300,10 +311,21 @@ export const api = {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("document_role", documentRole);
-    const res = await fetch(`${API_BASE}/api/subjects/${subjectId}/documents/upload`, {
-      method: "POST",
-      body: formData,
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/api/subjects/${subjectId}/documents/upload`, {
+        method: "POST",
+        body: formData,
+      });
+    } catch (netErr: any) {
+      if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+        throw new Error(
+          `Backend server unreachable at ${API_BASE || 'default'}. Please set NEXT_PUBLIC_API_URL in your Vercel settings to your deployed FastAPI backend URL.`
+        );
+      }
+      throw new Error(`Cannot connect to Backend at ${API_BASE}. Make sure FastAPI is running (python -m uvicorn backend.app.main:app --port 8000).`);
+    }
+
     if (!res.ok) {
       let msg = "Upload failed";
       try {
