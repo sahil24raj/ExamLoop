@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --background: #060807;
+  --surface-base: #0D1410;
+  --surface-elevated: #142019;
+  --surface-highlight: #1B2B22;
+  --surface-border: #26382D;
+  --surface-border-subtle: #1A2820;
+  
+  --foreground: #F9F9F9;
+  --foreground-muted: #A7B8AE;
+  --foreground-subtle: #6C8074;
+  
+  --accent-primary: #06AB63;
+  --accent-bright: #A3FF70;
+  --accent-secondary: #24EACE;
+  --accent-cyan: #24EACE;
+  
+  --accent-warning: #F59E0B;
+  --accent-warning-subtle: rgba(245, 158, 11, 0.12);
+  
+  --accent-danger: #EF4444;
+  --accent-danger-subtle: rgba(239, 68, 68, 0.12);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom subtle dark-green tinted scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #060807;
+}
+::-webkit-scrollbar-thumb {
+  background: #26382D;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3B5746;
+}
+
+/* Custom selection styling */
+::selection {
+  background: #06AB63;
+  color: #060807;
+}

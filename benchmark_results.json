@@ -1,0 +1,71 @@
+[
+  {
+    "model": "nvidia/llama-3.1-nemotron-70b-instruct:free",
+    "status": "HTTP 404",
+    "latency_sec": 1.54,
+    "error": "{\"error\":{\"message\":\"No endpoints found for nvidia/llama-3.1-nemotron-70b-instruct:free.\",\"code\":404},\"user_id\":\"user_3HzfD6jexI6NDtCcV0EYUv5Aqvm\"}"
+  },
+  {
+    "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+    "status": "HTTP 404",
+    "latency_sec": 0.62,
+    "error": "{\"error\":{\"message\":\"No endpoints found for nvidia/llama-3.1-nemotron-70b-instruct.\",\"code\":404},\"user_id\":\"user_3HzfD6jexI6NDtCcV0EYUv5Aqvm\"}"
+  },
+  {
+    "model": "nvidia/nemotron-4-340b-instruct",
+    "status": "HTTP 404",
+    "latency_sec": 0.54,
+    "error": "{\"error\":{\"message\":\"No endpoints found for nvidia/nemotron-4-340b-instruct.\",\"code\":404},\"user_id\":\"user_3HzfD6jexI6NDtCcV0EYUv5Aqvm\"}"
+  },
+  {
+    "model": "deepseek/deepseek-chat:free",
+    "status": "HTTP 404",
+    "latency_sec": 0.56,
+    "error": "{\"error\":{\"message\":\"This model is unavailable for free. The paid version is available now - use this slug instead: deepseek/deepseek-chat\",\"code\":404},\"user_id\":\"user_3HzfD6jexI6NDtCcV0EYUv5Aqvm\"}"
+  },
+  {
+    "model": "deepseek/deepseek-chat",
+    "status": "SUCCESS",
+    "latency_sec": 4.63,
+    "valid_json": true,
+    "response_preview": "{\n  \"question_text\": \"Which of the following isolation levels prevents Dirty Reads and Non-Repeatable Reads but allows P"
+  },
+  {
+    "model": "deepseek/deepseek-r1:free",
+    "status": "HTTP 404",
+    "latency_sec": 0.96,
+    "error": "{\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_3HzfD6jexI6NDtCcV0EYUv5Aqvm\"}"
+  },
+  {
+    "model": "deepseek/deepseek-r1-distill-llama-70b",
+    "status": "HTTP 404",
+    "latency_sec": 0.85,
+    "error": "{\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1-distill-llama-70b.\",\"code\":404},\"user_id\":\"user_3HzfD6jexI6NDtCcV0EYUv5Aqvm\"}"
+  },
+  {
+    "model": "qwen/qwen-2.5-72b-instruct:free",
+    "status": "HTTP 404",
+    "latency_sec": 0.73,
+    "error": "{\"error\":{\"message\":\"This model is unavailable for free. The paid version is available now - use this slug instead: qwen/qwen-2.5-72b-instruct\",\"code\":404},\"user_id\":\"user_3HzfD6jexI6NDtCcV0EYUv5Aqvm\""
+  },
+  {
+    "model": "qwen/qwen-2.5-72b-instruct",
+    "status": "SUCCESS",
+    "latency_sec": 4.65,
+    "valid_json": true,
+    "response_preview": "{\n  \"question_text\": \"Which of the following isolation levels prevents Dirty Reads and Non-Repeatable Reads but allows P"
+  },
+  {
+    "model": "meta-llama/llama-3.3-70b-instruct:free",
+    "status": "HTTP 404",
+    "latency_sec": 0.78,
+    "error": "{\"error\":{\"message\":\"This model is unavailable for free. The paid version is available now - use this slug instead: meta-llama/llama-3.3-70b-instruct\",\"code\":404},\"user_id\":\"user_3HzfD6jexI6NDtCcV0EYU"
+  },
+  {
+    "model": "meta-llama/llama-3.3-70b-instruct",
+    "status": "SUCCESS",
+    "latency_sec": 4.78,
+    "valid_json": true,
+    "response_preview": "{\n  \"question_text\": \"What type of read is permitted by the Repeatable Read isolation level, where newly inserted rows s"
+  }
+]
