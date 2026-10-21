@@ -259,7 +259,7 @@ export async function apiFetch<T>(endpoint: string, options?: RequestInit): Prom
   } catch (netErr: any) {
     if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
       throw new Error(
-        `Backend server unreachable at ${API_BASE || 'default'}. Please set NEXT_PUBLIC_API_URL in your Vercel settings to your deployed FastAPI backend URL.`
+        `Backend server unreachable or waking up at ${API_BASE || 'default'}. Render free instances take ~30-45 seconds to spin up from cold sleep. Please wait a moment and try again.`
       );
     }
     throw new Error(`Cannot connect to Backend at ${API_BASE}. Make sure FastAPI is running (python -m uvicorn backend.app.main:app --port 8000).`);
