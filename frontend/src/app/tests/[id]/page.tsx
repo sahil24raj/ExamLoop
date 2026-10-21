@@ -53,7 +53,8 @@ function TestTakingContent() {
   const [showExitModal, setShowExitModal] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(20 * 60);
   const [timeSpentSeconds, setTimeSpentSeconds] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Load test data
   useEffect(() => {
@@ -65,7 +66,7 @@ function TestTakingContent() {
         setSecondsRemaining(data.duration_minutes * 60);
       })
       .catch((err) => {
-        setError(err.message || "Failed to load test");
+        setLoadError(err.message || "Failed to load test");
       })
       .finally(() => setLoading(false));
   }, [testId]);
@@ -135,7 +136,7 @@ function TestTakingContent() {
   const handleSubmit = async () => {
     if (!testData?.attempt_id) return;
     setSubmitting(true);
-    setError(null);
+    setSubmitError(null);
     try {
       const payloadAnswers = Object.entries(answers).map(([qId, val]) => ({
         question_id: qId,
@@ -151,9 +152,8 @@ function TestTakingContent() {
 
       router.push(`/results/${testData.attempt_id}`);
     } catch (err: any) {
-      setError(err.message || "Failed to submit test");
+      setSubmitError(err.message || "Failed to submit test. Please check connection and try again.");
       setSubmitting(false);
-      setShowSubmitModal(false);
     }
   };
 
@@ -167,13 +167,13 @@ function TestTakingContent() {
     );
   }
 
-  if (error || !testData || !testData.questions.length) {
+  if (loadError || !testData || !testData.questions.length) {
     return (
       <div className="min-h-screen bg-[#060807] flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-[#0D1410] border border-[#26382D] rounded-2xl p-6 text-center space-y-4 shadow-xl">
           <AlertCircle className="w-10 h-10 text-[#F87171] mx-auto" />
           <h2 className="text-lg font-bold text-[#F9F9F9]">Error Loading Test</h2>
-          <p className="text-sm text-[#A7B8AE]">{error || "No questions found for this test."}</p>
+          <p className="text-sm text-[#A7B8AE]">{loadError || "No questions found for this test."}</p>
           <Link
             href="/dashboard"
             className="inline-block px-5 py-2.5 bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] rounded-xl text-xs font-bold transition shadow-md shadow-[#24EACE]/20"
@@ -271,7 +271,10 @@ function TestTakingContent() {
 
             {/* Submit CTA */}
             <button
-              onClick={() => setShowSubmitModal(true)}
+              onClick={() => {
+                setSubmitError(null);
+                setShowSubmitModal(true);
+              }}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] font-bold text-xs shadow-md shadow-[#24EACE]/20 transition active:scale-95"
             >
               <Send className="w-3.5 h-3.5" />
@@ -484,7 +487,10 @@ function TestTakingContent() {
                 </button>
               ) : (
                 <button
-                  onClick={() => setShowSubmitModal(true)}
+                  onClick={() => {
+                    setSubmitError(null);
+                    setShowSubmitModal(true);
+                  }}
                   className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] text-xs font-bold shadow-md shadow-[#24EACE]/20 transition"
                 >
                   Finish & Submit
@@ -526,6 +532,16 @@ function TestTakingContent() {
             <p className="text-xs text-[#A7B8AE] leading-relaxed">
               Upon submission, objective MCQs will be scored deterministically, and subjective answers will be evaluated criterion-by-criterion against pre-persisted rubrics with normalized score out of 10.
             </p>
+
+            {submitError && (
+              <div className="p-3.5 rounded-xl bg-[#261012] border border-[#542125] text-[#F87171] text-xs flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-[#F87171]">Evaluation / Submission Issue</p>
+                  <p className="text-[11px] text-[#A7B8AE] leading-relaxed">{submitError}</p>
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <button

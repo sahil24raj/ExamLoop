@@ -15,12 +15,11 @@ class Settings(BaseModel):
     openrouter_base_url: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     
     # Model hierarchy:
-    # 1st Priority: Google Gemini 2.5 Flash (Ultra-fast generation: ~2-10s, high quality JSON)
-    # 2nd Priority: DeepSeek Chat (High throughput, reliable reasoning ~3-5s)
-    # Fallback: Meta LLaMA 3.3 70B Instruct / Mistral Small 24B
-    openrouter_fast_model: str = os.getenv("OPENROUTER_FAST_MODEL", "google/gemini-2.5-flash")
-    openrouter_reasoning_model: str = os.getenv("OPENROUTER_REASONING_MODEL", "google/gemini-2.5-flash")
-    openrouter_fallback_model: str = os.getenv("OPENROUTER_FALLBACK_MODEL", "deepseek/deepseek-chat")
+    # 1st Priority: NVIDIA Nemotron 3.5 Lightning (Free tier verified 100% JSON)
+    # Fallbacks: Minimax / Google Gemma free models
+    openrouter_fast_model: str = os.getenv("OPENROUTER_FAST_MODEL", "nvidia/nemotron-3.5-lightning:free")
+    openrouter_reasoning_model: str = os.getenv("OPENROUTER_REASONING_MODEL", "nvidia/nemotron-3.5-lightning:free")
+    openrouter_fallback_model: str = os.getenv("OPENROUTER_FALLBACK_MODEL", "minimax/minimax-m3.1-flash:free")
 
     # Embeddings / Retrieval
     embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "lexical")
