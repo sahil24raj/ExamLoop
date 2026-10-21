@@ -42,6 +42,7 @@ backend/.env*.local
 
 # Vercel & IDE
 .vercel
+.agents/
 .vscode/
 .idea/
 .DS_Store

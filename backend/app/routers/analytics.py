@@ -3,13 +3,16 @@ from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models import Document, Test, Attempt, ConceptProgress, Concept, Subject
 from backend.app.schemas import DashboardMetricsResponse
-from backend.app.routers.subjects import get_or_create_default_user
+from backend.app.auth import get_current_user
+from backend.app.models import User
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
 @router.get("/metrics", response_model=DashboardMetricsResponse)
-def get_dashboard_metrics(db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
+def get_dashboard_metrics(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
 
     doc_count = db.query(Document).filter(Document.user_id == user.id, Document.is_deleted == False).count()
     completed_attempts = db.query(Attempt).filter(

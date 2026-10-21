@@ -341,6 +341,9 @@ class SettingsStatusResponse(BaseModel):
     storage_dir: str
     database_url_redacted: str
     active_user: Dict[str, str]
+    supabase_configured: Optional[bool] = False
+    supabase_db_connected: Optional[bool] = False
+    supabase_url_redacted: Optional[str] = None
 
 class DashboardMetricsResponse(BaseModel):
     documents_processed: int

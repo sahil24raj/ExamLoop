@@ -14,7 +14,8 @@ from backend.app.services.ai_service import ai_service
 from backend.app.services.retrieval_service import retrieval_service
 from backend.app.services.scoring_service import scoring_service
 from backend.app.services.adaptive_service import adaptive_service
-from backend.app.routers.subjects import get_or_create_default_user
+from backend.app.auth import get_current_user
+from backend.app.models import User
 
 router = APIRouter(prefix="/api", tags=["Tests"])
 
@@ -22,9 +23,9 @@ router = APIRouter(prefix="/api", tags=["Tests"])
 def generate_test_for_subject(
     subject_id: str,
     payload: TestCreateRequest = Body(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
-    user = get_or_create_default_user(db)
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -425,7 +426,8 @@ def synthesize_custom_test_fallback(
 def create_custom_test(
     subject_id: str,
     payload: CustomTestCreateRequest = Body(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """
     Creates a custom practice test configured by the student:
@@ -435,7 +437,6 @@ def create_custom_test(
     - Pre-persists complete rubrics and answer keys
     - Automatically determines source_mode (reference_grounded vs syllabus_scoped)
     """
-    user = get_or_create_default_user(db)
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -853,13 +854,16 @@ def list_tests_for_subject(subject_id: str, db: Session = Depends(get_db)):
     return results
 
 @router.get("/tests/{test_id}/take", response_model=TestTakingView)
-def get_test_taking_view(test_id: str, db: Session = Depends(get_db)):
+def get_test_taking_view(
+    test_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
     """
     CRITICAL: Secure student view of test.
     Excludes correct_option_id, reference_answer, and rubrics!
     Creates or resumes an in-progress Attempt.
     """
-    user = get_or_create_default_user(db)
     test = db.query(Test).filter(Test.id == test_id).first()
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")

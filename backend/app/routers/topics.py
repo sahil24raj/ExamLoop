@@ -12,14 +12,16 @@ from backend.app.schemas import (
     TopicCreate, TopicUpdate, TopicMergeRequest, TopicResponse, SyllabusUnitResponse
 )
 from backend.app.services.ai_service import ai_service
-from backend.app.routers.subjects import get_or_create_default_user
+from backend.app.auth import get_current_user
+from backend.app.models import User
 
 router = APIRouter(prefix="/api", tags=["Syllabus & Topics"])
 
 @router.post("/subjects/{subject_id}/syllabus/analyze", response_model=List[SyllabusUnitResponse])
 def analyze_subject_syllabus(
     subject_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """
     Triggers AI syllabus hierarchy analysis.
@@ -30,7 +32,6 @@ def analyze_subject_syllabus(
     labeled as 'Suggested practice priority' with rationale.
     Inferred topics are explicitly flagged for student confirmation.
     """
-    user = get_or_create_default_user(db)
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -276,12 +277,12 @@ def analyze_subject_syllabus(
 @router.get("/subjects/{subject_id}/units", response_model=List[SyllabusUnitResponse])
 def get_subject_units_and_topics(
     subject_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """
     Returns full hierarchy of units and their child topics for the subject.
     """
-    user = get_or_create_default_user(db)
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -352,12 +353,12 @@ def get_subject_topics(
     unit_id: Optional[str] = None,
     priority: Optional[str] = None,
     include_excluded: bool = False,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """
     Returns flat list of topics with optional filtering by unit, priority, and exclusion status.
     """
-    user = get_or_create_default_user(db)
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -378,12 +379,12 @@ def get_subject_topics(
 def create_topic_manually(
     subject_id: str,
     payload: TopicCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """
     Manually add a topic to a syllabus unit.
     """
-    user = get_or_create_default_user(db)
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")

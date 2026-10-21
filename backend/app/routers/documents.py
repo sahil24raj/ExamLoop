@@ -9,7 +9,7 @@ from backend.app.models import Document, DocumentChunk, Subject, User
 from backend.app.schemas import DocumentResponse, DocumentChunkResponse
 from backend.app.services.storage_service import storage_service
 from backend.app.services.document_service import document_service, DocumentExtractionError
-from backend.app.routers.subjects import get_or_create_default_user
+from backend.app.auth import get_current_user
 
 from pydantic import BaseModel
 
@@ -25,9 +25,9 @@ async def upload_document(
     subject_id: str,
     file: UploadFile = File(...),
     document_role: str = Form("notes"), # "syllabus" | "notes" | "previous_paper"
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
-    user = get_or_create_default_user(db)
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -100,9 +100,9 @@ async def upload_document(
 def paste_document_text(
     subject_id: str,
     payload: PasteTextRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
-    user = get_or_create_default_user(db)
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")

@@ -1,3 +1,5 @@
+import { getSupabaseAccessToken } from "@/lib/supabase";
+
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
 
@@ -211,6 +213,9 @@ export interface SettingsStatus {
     name: string;
     email: string;
   };
+  supabase_configured?: boolean;
+  supabase_db_connected?: boolean;
+  supabase_url_redacted?: string;
 }
 
 export interface DashboardMetrics {
@@ -248,11 +253,15 @@ export interface DashboardMetrics {
 // API methods
 export async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
   let res: Response;
+  const token = await getSupabaseAccessToken();
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
   try {
     res = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders,
         ...(options?.headers || {}),
       },
     });
@@ -313,9 +322,13 @@ export const api = {
     formData.append("file", file);
     formData.append("document_role", documentRole);
     let res: Response;
+    const token = await getSupabaseAccessToken();
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
     try {
       res = await fetch(`${API_BASE}/api/subjects/${subjectId}/documents/upload`, {
         method: "POST",
+        headers,
         body: formData,
       });
     } catch (netErr: any) {

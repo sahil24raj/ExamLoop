@@ -1,8 +1,18 @@
 import os
-from pydantic import BaseModel
 from pathlib import Path
+from pydantic import BaseModel
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = BASE_DIR.parent
+
+# Load .env from workspace root, falling back to BASE_DIR / '.env'
+if (ROOT_DIR / ".env").exists():
+    load_dotenv(ROOT_DIR / ".env")
+elif (BASE_DIR / ".env").exists():
+    load_dotenv(BASE_DIR / ".env")
+else:
+    load_dotenv()
 
 class Settings(BaseModel):
     app_name: str = "ExamLoop API"
@@ -29,6 +39,12 @@ class Settings(BaseModel):
     # Demo Mode: false when live API key is available
     demo_mode: bool = os.getenv("DEMO_MODE", "false").lower() in ("true", "1", "yes")
     
+    # Supabase Configuration
+    supabase_url: str = os.getenv("SUPABASE_URL", os.getenv("NEXT_PUBLIC_SUPABASE_URL", ""))
+    supabase_jwt_secret: str = os.getenv("SUPABASE_JWT_SECRET", "")
+    supabase_anon_key: str = os.getenv("SUPABASE_ANON_KEY", os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", ""))
+    supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
     default_user_id: str = "usr_default_01"
     default_user_email: str = "student@examloop.local"
     default_user_name: str = "Demo Student"

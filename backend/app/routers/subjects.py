@@ -8,25 +8,16 @@ from backend.app.models import Subject, User, Document, DocumentChunk, Concept
 from backend.app.schemas import SubjectCreate, SubjectUpdate, SubjectResponse
 from backend.app.fixtures.dbms_demo import DBMS_SAMPLE_TEXT, DBMS_FIXTURE_CONCEPTS
 from backend.app.services.document_service import document_service
+from backend.app.auth import get_current_user, get_or_create_default_user
 
 router = APIRouter(prefix="/api/subjects", tags=["Subjects"])
 
-def get_or_create_default_user(db: Session) -> User:
-    user = db.query(User).filter(User.id == settings.default_user_id).first()
-    if not user:
-        user = User(
-            id=settings.default_user_id,
-            email=settings.default_user_email,
-            name=settings.default_user_name
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    return user
-
 @router.post("", response_model=SubjectResponse)
-def create_subject(payload: SubjectCreate, db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
+def create_subject(
+    payload: SubjectCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
     subject = Subject(
         user_id=user.id,
         name=payload.name,
@@ -43,8 +34,10 @@ def create_subject(payload: SubjectCreate, db: Session = Depends(get_db)):
     return subject
 
 @router.get("", response_model=List[SubjectResponse])
-def list_subjects(db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
+def list_subjects(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
     subjects = db.query(Subject).filter(Subject.user_id == user.id).all()
     results = []
     for s in subjects:
@@ -70,8 +63,11 @@ def list_subjects(db: Session = Depends(get_db)):
     return results
 
 @router.get("/{subject_id}", response_model=SubjectResponse)
-def get_subject(subject_id: str, db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
+def get_subject(
+    subject_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -95,8 +91,12 @@ def get_subject(subject_id: str, db: Session = Depends(get_db)):
     )
 
 @router.put("/{subject_id}", response_model=SubjectResponse)
-def update_subject(subject_id: str, payload: SubjectUpdate, db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
+def update_subject(
+    subject_id: str,
+    payload: SubjectUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -121,11 +121,14 @@ def update_subject(subject_id: str, payload: SubjectUpdate, db: Session = Depend
     return subject
 
 @router.post("/{subject_id}/seed-demo")
-def seed_demo_data(subject_id: str, db: Session = Depends(get_db)):
+def seed_demo_data(
+    subject_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
     """
     Seeds verified DBMS sample notes and concepts for immediate demonstration.
     """
-    user = get_or_create_default_user(db)
     subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -202,11 +205,13 @@ def seed_demo_data(subject_id: str, db: Session = Depends(get_db)):
     return {"message": "Demo DBMS notes and concepts successfully seeded."}
 
 @router.post("/seed-demo")
-def seed_global_demo(db: Session = Depends(get_db)):
+def seed_global_demo(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
     """
     1-click endpoint to initialize default DBMS subject, notes, chunks, and concepts.
     """
-    user = get_or_create_default_user(db)
     subject = db.query(Subject).filter(Subject.user_id == user.id, Subject.name.like("%DBMS%")).first()
     if not subject:
         subject = Subject(

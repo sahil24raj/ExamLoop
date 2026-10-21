@@ -12,7 +12,8 @@ from backend.app.schemas import (
 )
 from backend.app.services.scoring_service import scoring_service
 from backend.app.services.adaptive_service import adaptive_service
-from backend.app.routers.subjects import get_or_create_default_user
+from backend.app.auth import get_current_user
+from backend.app.models import User
 
 router = APIRouter(prefix="/api/attempts", tags=["Attempts"])
 
@@ -59,9 +60,9 @@ def save_answer(
 def submit_attempt(
     attempt_id: str,
     payload: AttemptSubmitRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
-    user = get_or_create_default_user(db)
     attempt = db.query(Attempt).filter(Attempt.id == attempt_id, Attempt.user_id == user.id).first()
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
@@ -96,11 +97,14 @@ def submit_attempt(
     # Update concept progress heuristics
     adaptive_service.update_concept_progress(db, attempt)
 
-    return get_attempt_results(attempt_id, db)
+    return get_attempt_results(attempt_id, db, user)
 
 @router.get("/{attempt_id}/results", response_model=AttemptResultResponse)
-def get_attempt_results(attempt_id: str, db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
+def get_attempt_results(
+    attempt_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
     attempt = db.query(Attempt).filter(Attempt.id == attempt_id, Attempt.user_id == user.id).first()
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
