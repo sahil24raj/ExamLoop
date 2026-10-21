@@ -38,7 +38,7 @@ Generate exactly 1 MCQ in valid JSON format:
 Return only JSON.
 """
 
-def test_model(model_name):
+def evaluate_model(model_name):
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "HTTP-Referer": "https://examloop.local",
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     results = []
     for model in CANDIDATES:
         print(f"Testing {model}...", flush=True)
-        res = test_model(model)
+        res = evaluate_model(model)
         results.append(res)
         print(f" -> {res['status']} ({res.get('latency_sec')}s) - Valid JSON: {res.get('valid_json', False)}")
         time.sleep(0.5)
