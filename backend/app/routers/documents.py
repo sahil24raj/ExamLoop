@@ -9,7 +9,7 @@ from backend.app.models import Document, DocumentChunk, Subject, User
 from backend.app.schemas import DocumentResponse, DocumentChunkResponse
 from backend.app.services.storage_service import storage_service
 from backend.app.services.document_service import document_service, DocumentExtractionError
-from backend.app.auth import get_current_user
+from backend.app.auth import get_current_user, get_user_accessible_subject
 
 from pydantic import BaseModel
 
@@ -28,7 +28,7 @@ async def upload_document(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -103,7 +103,7 @@ def paste_document_text(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -159,19 +159,28 @@ def paste_document_text(
     return doc
 
 @router.get("/subjects/{subject_id}/documents", response_model=List[DocumentResponse])
-def list_documents(subject_id: str, db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
+def list_documents(
+    subject_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    subject = get_user_accessible_subject(db, subject_id, user)
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
     docs = db.query(Document).filter(
         Document.subject_id == subject_id,
-        Document.user_id == user.id,
         Document.is_deleted == False
     ).order_by(Document.created_at.desc()).all()
     return docs
 
 @router.get("/documents/{document_id}/chunks", response_model=List[DocumentChunkResponse])
-def get_document_chunks(document_id: str, db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
-    doc = db.query(Document).filter(Document.id == document_id, Document.user_id == user.id).first()
+def get_document_chunks(
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc or doc.is_deleted:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -179,9 +188,12 @@ def get_document_chunks(document_id: str, db: Session = Depends(get_db)):
     return chunks
 
 @router.get("/documents/{document_id}/file")
-def get_document_file(document_id: str, db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
-    doc = db.query(Document).filter(Document.id == document_id, Document.user_id == user.id).first()
+def get_document_file(
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc or doc.is_deleted:
         raise HTTPException(status_code=404, detail="Document not found")
 

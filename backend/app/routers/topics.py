@@ -12,7 +12,7 @@ from backend.app.schemas import (
     TopicCreate, TopicUpdate, TopicMergeRequest, TopicResponse, SyllabusUnitResponse
 )
 from backend.app.services.ai_service import ai_service
-from backend.app.auth import get_current_user
+from backend.app.auth import get_current_user, get_user_accessible_subject
 from backend.app.models import User
 
 router = APIRouter(prefix="/api", tags=["Syllabus & Topics"])
@@ -32,7 +32,7 @@ def analyze_subject_syllabus(
     labeled as 'Suggested practice priority' with rationale.
     Inferred topics are explicitly flagged for student confirmation.
     """
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -117,6 +117,36 @@ def analyze_subject_syllabus(
         raw_units = []
 
     # Heuristic fallback if AI returns no units or fails
+    if not raw_units:
+        import re
+        pattern = re.compile(r"(?:Unit|Module|Chapter)\s*([0-9IVX]+)[\s:\-\.]+([^\n\r]{3,80})", re.IGNORECASE)
+        matches = pattern.findall(syllabus_text)
+        if len(matches) >= 2:
+            raw_units = []
+            for idx, (num_str, title) in enumerate(matches[:5], 1):
+                clean_title = title.strip().strip("-:.").strip()
+                if not clean_title:
+                    clean_title = f"Topic {idx}"
+                raw_units.append({
+                    "unit_number": idx,
+                    "title": f"Unit {idx}: {clean_title}",
+                    "description": f"Curriculum unit covering {clean_title}.",
+                    "topics": [
+                        {
+                            "name": f"{clean_title} - Core Principles",
+                            "description": f"Core principles and foundations of {clean_title}.",
+                            "practice_priority": "high",
+                            "priority_reason": "Foundational requirement"
+                        },
+                        {
+                            "name": f"{clean_title} - Practical Application",
+                            "description": f"Practical methods, operations, and analysis of {clean_title}.",
+                            "practice_priority": "high" if idx <= 2 else "medium",
+                            "priority_reason": "High examination frequency"
+                        }
+                    ]
+                })
+
     if not raw_units:
         raw_units = [
             {
@@ -272,7 +302,7 @@ def analyze_subject_syllabus(
 
     db.commit()
 
-    return get_subject_units_and_topics(subject_id, db)
+    return get_subject_units_and_topics(subject_id, db, user)
 
 @router.get("/subjects/{subject_id}/units", response_model=List[SyllabusUnitResponse])
 def get_subject_units_and_topics(
@@ -283,7 +313,7 @@ def get_subject_units_and_topics(
     """
     Returns full hierarchy of units and their child topics for the subject.
     """
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -359,7 +389,7 @@ def get_subject_topics(
     """
     Returns flat list of topics with optional filtering by unit, priority, and exclusion status.
     """
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -385,7 +415,7 @@ def create_topic_manually(
     """
     Manually add a topic to a syllabus unit.
     """
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 

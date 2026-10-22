@@ -67,13 +67,11 @@ export default function NewSubjectPage() {
         });
       }
 
-      // 3. Trigger AI syllabus hierarchy analysis
-      setStatusMsg("AI extracting units, topics, and practice questions...");
-      try {
-        await api.analyzeSyllabus(subject.id);
-      } catch (analyzeErr) {
-        console.warn("Initial syllabus analysis note:", analyzeErr);
-      }
+      // 3. Trigger AI syllabus hierarchy analysis asynchronously in background
+      setStatusMsg("Study materials ready! Opening workspace...");
+      api.analyzeSyllabus(subject.id).catch((analyzeErr) => {
+        console.warn("Background syllabus analysis note:", analyzeErr);
+      });
 
       router.push(`/subjects/${subject.id}`);
     } catch (err: any) {

@@ -2,6 +2,7 @@ import os
 import time
 import json
 import re
+import logging
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 from sqlalchemy.orm import Session
@@ -12,6 +13,8 @@ from backend.app.fixtures.dbms_demo import (
     DBMS_FIXTURE_CONCEPTS,
     DBMS_FIXTURE_QUESTIONS
 )
+
+logger = logging.getLogger(__name__)
 
 class AIServiceError(Exception):
     pass
@@ -138,15 +141,13 @@ class AIService:
 
         # Candidate models hierarchy: priority chain with verified active free models
         candidate_models = [
-            primary_model or settings.openrouter_reasoning_model,
+            primary_model or settings.openrouter_fast_model,
             settings.openrouter_fast_model,
-            settings.openrouter_reasoning_model,
             "nvidia/nemotron-3.5-lightning:free",
             "minimax/minimax-m3.1-flash:free",
             "liquid/lfm-2.5-2.6b:free",
             "google/gemma-4-26b-a4b-it:free",
             settings.openrouter_fallback_model,
-            "deepseek/deepseek-chat",
             "meta-llama/llama-3.3-70b-instruct"
         ]
         # Deduplicate while preserving priority order
@@ -163,7 +164,8 @@ class AIService:
                     model=model,
                     messages=messages,
                     temperature=temperature,
-                    max_tokens=max_tokens
+                    max_tokens=max_tokens,
+                    timeout=15.0
                 )
                 duration_ms = int((time.time() - start_time) * 1000)
                 prompt_tokens = response.usage.prompt_tokens if response.usage else 0
@@ -321,10 +323,13 @@ class AIService:
             primary_model=settings.openrouter_reasoning_model,
             max_tokens=2200
         )
-        cleaned = self._clean_json_response(raw)
         try:
-            data = json.loads(cleaned)
-            return data.get("questions", [])
+            data = self._parse_json_safely(raw)
+            if isinstance(data, dict):
+                return data.get("questions", [])
+            elif isinstance(data, list):
+                return data
+            return []
         except Exception as err:
             raise AIServiceError(f"Failed to parse question generation JSON: {str(err)} (Raw: {raw[:200]})")
 
@@ -465,21 +470,21 @@ class AIService:
             else:
                 crit_results = [
                     {
-                        "criterion_id": c["criterion_id"],
-                        "awarded_marks": float(c["max_marks"]),
+                        "criterion_id": c.get("criterion_id", f"crit_{idx}"),
+                        "awarded_marks": float(c.get("max_marks", 1.0)),
                         "justification": "Criterion addressed accurately with clear technical reasoning.",
                         "excerpt": student_answer[:100]
                     }
-                    for c in rubric_criteria
+                    for idx, c in enumerate(rubric_criteria)
                 ]
                 return {
                     "awarded_marks": max_marks,
                     "max_marks": max_marks,
                     "criterion_results": crit_results,
-                    "correct_points": ["Thorough explanation of isolation levels, locks, and phantom anomalies."],
+                    "correct_points": ["Thorough explanation of core principles and key mechanisms."],
                     "missing_points": [],
                     "misconceptions": [],
-                    "actionable_feedback": "Excellent response with strong mastery of transaction isolation and concurrency mechanics.",
+                    "actionable_feedback": "Excellent response with strong mastery of technical concepts.",
                     "source_references": source_evidence[:2],
                     "review_needed": False,
                     "review_reason": None
@@ -529,8 +534,7 @@ class AIService:
                 primary_model=settings.openrouter_reasoning_model,
                 max_tokens=1500
             )
-            cleaned = self._clean_json_response(raw)
-            data = json.loads(cleaned)
+            data = self._parse_json_safely(raw)
             awarded = sum(float(c.get("awarded_marks", 0.0)) for c in data.get("criterion_results", []))
             data["awarded_marks"] = min(float(max_marks), max(0.0, round(awarded, 2)))
             data["max_marks"] = float(max_marks)
@@ -784,9 +788,9 @@ class AIService:
             "Return ONLY the JSON object."
         )
 
-        user_content = f"SYLLABUS CONTENT:\n{syllabus_text[:5000]}"
+        user_content = f"SYLLABUS CONTENT:\n{syllabus_text[:4000]}"
         if previous_papers_chunks:
-            papers_text = "\n---\n".join([c.get("content", "")[:350] for c in previous_papers_chunks[:6]])
+            papers_text = "\n---\n".join([c.get("content", "")[:300] for c in previous_papers_chunks[:4]])
             user_content += f"\n\nPREVIOUS PAPER EXCERPTS ({len(previous_papers_chunks)} available):\n{papers_text}"
 
         messages = [
@@ -796,8 +800,8 @@ class AIService:
 
         raw = self._call_chat_with_fallback(
             db, "analyze_syllabus_hierarchy", messages,
-            primary_model=settings.openrouter_reasoning_model,
-            max_tokens=3000
+            primary_model=settings.openrouter_fast_model,
+            max_tokens=1500
         )
         try:
             data = self._parse_json_safely(raw)

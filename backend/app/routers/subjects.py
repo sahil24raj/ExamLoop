@@ -8,7 +8,7 @@ from backend.app.models import Subject, User, Document, DocumentChunk, Concept
 from backend.app.schemas import SubjectCreate, SubjectUpdate, SubjectResponse
 from backend.app.fixtures.dbms_demo import DBMS_SAMPLE_TEXT, DBMS_FIXTURE_CONCEPTS
 from backend.app.services.document_service import document_service
-from backend.app.auth import get_current_user, get_or_create_default_user
+from backend.app.auth import get_current_user, get_or_create_default_user, get_user_accessible_subject
 
 router = APIRouter(prefix="/api/subjects", tags=["Subjects"])
 
@@ -38,7 +38,9 @@ def list_subjects(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    subjects = db.query(Subject).filter(Subject.user_id == user.id).all()
+    subjects = db.query(Subject).filter(
+        (Subject.user_id == user.id) | (Subject.user_id == settings.default_user_id)
+    ).all()
     results = []
     for s in subjects:
         doc_count = db.query(Document).filter(Document.subject_id == s.id, Document.is_deleted == False).count()
@@ -68,7 +70,7 @@ def get_subject(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -97,7 +99,7 @@ def update_subject(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -129,7 +131,7 @@ def seed_demo_data(
     """
     Seeds verified DBMS sample notes and concepts for immediate demonstration.
     """
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 

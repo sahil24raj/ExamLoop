@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, useCallback, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -24,6 +24,7 @@ import {
   BookOpen
 } from "lucide-react";
 import { api, AttemptResults, EvaluationDetail } from "@/lib/api";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import EvidenceModal from "@/components/EvidenceModal";
 
 export default function ResultsPage() {
@@ -58,15 +59,33 @@ function ResultsContent() {
   const [modalTitle, setModalTitle] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
+  const loadResults = useCallback(() => {
     if (!attemptId) return;
     api.getAttemptResults(attemptId)
-      .then(setResults)
+      .then((res) => {
+        setResults(res);
+        setError(null);
+      })
       .catch((err) => {
         setError(err.message || "Failed to load attempt results");
       })
       .finally(() => setLoading(false));
   }, [attemptId]);
+
+  useEffect(() => {
+    loadResults();
+
+    if (isSupabaseConfigured) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (session && attemptId) {
+          loadResults();
+        }
+      });
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+  }, [attemptId, loadResults]);
 
   const handleOpenEvidence = (ev: EvaluationDetail) => {
     setModalEvidence(ev.source_references || []);

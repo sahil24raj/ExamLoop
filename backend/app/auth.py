@@ -254,3 +254,32 @@ def get_current_user(
             logger.info(f"Created new Supabase-authenticated user: {user.email} ({user.id})")
             
     return user
+
+def get_user_accessible_subject(db: Session, subject_id: str, user: User):
+    """
+    Retrieves a subject by ID, granting access if:
+    1. The authenticated user owns the subject, OR
+    2. The subject was created under the default user, automatically claiming it for the authenticated user, OR
+    3. The current user is the default user (token hydrating or unauthenticated read), OR
+    4. The user's email matches the subject owner's email.
+    """
+    from backend.app.models import Subject
+    subject = db.query(Subject).filter(Subject.id == subject_id).first()
+    if not subject:
+        return None
+    if subject.user_id == user.id:
+        return subject
+    if user.id == settings.default_user_id:
+        return subject
+    if subject.user_id == settings.default_user_id:
+        subject.user_id = user.id
+        db.commit()
+        db.refresh(subject)
+        return subject
+    # Check if owner email matches current user email
+    if user.email:
+        owner = db.query(User).filter(User.id == subject.user_id).first()
+        if owner and owner.email and owner.email.lower() == user.email.lower():
+            return subject
+    return None
+

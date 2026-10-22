@@ -20,6 +20,7 @@ import {
   ArrowLeft
 } from "lucide-react";
 import { api, TestTakingData, StudentQuestion } from "@/lib/api";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export default function TestTakingPage() {
   return (
@@ -179,18 +180,34 @@ function TestTakingContent() {
   }, []);
 
   // Load test data
-  useEffect(() => {
+  const loadTest = useCallback(() => {
     if (!testId) return;
     api.getTestTakingView(testId)
       .then((data) => {
         setTestData(data);
         setAnswers(data.saved_answers || {});
+        setLoadError(null);
       })
       .catch((err) => {
         setLoadError(err.message || "Failed to load test");
       })
       .finally(() => setLoading(false));
   }, [testId]);
+
+  useEffect(() => {
+    loadTest();
+
+    if (isSupabaseConfigured) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (session && testId) {
+          loadTest();
+        }
+      });
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+  }, [loadTest, testId]);
 
   // Autosave handler with debounce
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);

@@ -5,15 +5,18 @@ from typing import List
 from backend.app.database import get_db
 from backend.app.models import Concept, Document, DocumentChunk, Subject
 from backend.app.schemas import ConceptResponse, ConceptUpdate
-from backend.app.services.ai_service import ai_service
-from backend.app.routers.subjects import get_or_create_default_user
+from backend.app.auth import get_current_user, get_user_accessible_subject
+from backend.app.models import User
 
 router = APIRouter(prefix="/api", tags=["Concepts"])
 
 @router.post("/subjects/{subject_id}/concepts/extract", response_model=List[ConceptResponse])
-def extract_concepts_for_subject(subject_id: str, db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+def extract_concepts_for_subject(
+    subject_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -105,9 +108,12 @@ def extract_concepts_for_subject(subject_id: str, db: Session = Depends(get_db))
     return saved_concepts
 
 @router.get("/subjects/{subject_id}/concepts", response_model=List[ConceptResponse])
-def list_concepts(subject_id: str, db: Session = Depends(get_db)):
-    user = get_or_create_default_user(db)
-    subject = db.query(Subject).filter(Subject.id == subject_id, Subject.user_id == user.id).first()
+def list_concepts(
+    subject_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    subject = get_user_accessible_subject(db, subject_id, user)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 

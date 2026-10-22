@@ -254,10 +254,20 @@ export interface DashboardMetrics {
   };
 }
 
+async function getHydratedAuthToken(): Promise<string | null> {
+  let token = await getSupabaseAccessToken();
+  if (!token && typeof window !== "undefined") {
+    // Quick wait for Supabase auth state to finish reading localStorage / IndexedDB
+    await new Promise((r) => setTimeout(r, 100));
+    token = await getSupabaseAccessToken();
+  }
+  return token;
+}
+
 // API methods
-export async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+export async function apiFetch<T>(endpoint: string, options?: RequestInit, isRetry = false): Promise<T> {
   let res: Response;
-  const token = await getSupabaseAccessToken();
+  const token = await getHydratedAuthToken();
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   try {
@@ -276,6 +286,15 @@ export async function apiFetch<T>(endpoint: string, options?: RequestInit): Prom
       );
     }
     throw new Error(`Cannot connect to Backend at ${API_BASE}. Make sure FastAPI is running (python -m uvicorn backend.app.main:app --port 8000).`);
+  }
+
+  // Automatic retry if unauthenticated race occurred on initial cold component load
+  if ((res.status === 401 || res.status === 404) && !token && !isRetry && typeof window !== "undefined") {
+    await new Promise((r) => setTimeout(r, 300));
+    const refreshedToken = await getSupabaseAccessToken();
+    if (refreshedToken) {
+      return apiFetch<T>(endpoint, options, true);
+    }
   }
 
   if (!res.ok) {
@@ -326,7 +345,7 @@ export const api = {
     formData.append("file", file);
     formData.append("document_role", documentRole);
     let res: Response;
-    const token = await getSupabaseAccessToken();
+    const token = await getHydratedAuthToken();
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
     try {

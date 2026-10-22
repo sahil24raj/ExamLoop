@@ -42,11 +42,30 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
   if (!isSupabaseConfigured) return null;
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
+    if (session?.access_token) return session.access_token;
   } catch (err) {
     console.error("Failed to get Supabase session token:", err);
-    return null;
   }
+
+  // Fast localStorage recovery for initial render / SSR hydration
+  if (typeof window !== "undefined") {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.access_token) return parsed.access_token;
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
 }
 
 /**

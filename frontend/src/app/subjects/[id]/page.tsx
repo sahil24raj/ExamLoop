@@ -34,6 +34,7 @@ import {
   TopicItem,
   CustomTestConfig
 } from "@/lib/api";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import TestBuilderModal from "@/components/TestBuilderModal";
 
 export default function SubjectWorkspacePage() {
@@ -71,39 +72,98 @@ function SubjectWorkspaceContent() {
   const [priorityModalTopic, setPriorityModalTopic] = useState<TopicItem | null>(null);
 
   // Load Subject & Syllabus Hierarchy
-  const loadData = async () => {
+  const loadData = async (retryCount = 0) => {
+    if (!subjectId) return;
     try {
-      const [s, docs, u] = await Promise.all([
-        api.getSubject(subjectId),
+      const s = await api.getSubject(subjectId);
+      setSubject(s);
+      setError(null);
+
+      // Load documents and units with settled promises so partial responses don't zero out subject
+      const [docsRes, unitsRes] = await Promise.allSettled([
         api.listDocuments(subjectId),
         api.listUnits(subjectId)
       ]);
-      setSubject(s);
-      setDocuments(docs);
-      setUnits(u);
 
-      // Default: select all active topics if none selected yet
-      if (selectedTopicIds.size === 0 && u.length > 0) {
-        const allIds = new Set<string>();
-        u.forEach(unit => {
-          unit.topics.forEach(t => {
-            if (!t.is_excluded) allIds.add(t.id);
-          });
-        });
-        setSelectedTopicIds(allIds);
+      if (docsRes.status === "fulfilled") {
+        setDocuments(docsRes.value);
       }
+      if (unitsRes.status === "fulfilled") {
+        const u = unitsRes.value;
+        setUnits(u);
+
+        // Default: select all active topics if none selected yet
+        if (selectedTopicIds.size === 0 && u.length > 0) {
+          const allIds = new Set<string>();
+          u.forEach(unit => {
+            unit.topics.forEach(t => {
+              if (!t.is_excluded) allIds.add(t.id);
+            });
+          });
+          setSelectedTopicIds(allIds);
+        }
+      }
+      setLoading(false);
     } catch (err: any) {
+      console.warn("Failed to load syllabus workspace attempt", retryCount, err);
+      if (retryCount < 2) {
+        setTimeout(() => {
+          loadData(retryCount + 1);
+        }, (retryCount + 1) * 600);
+        return;
+      }
       setError(err.message || "Failed to load syllabus workspace");
-    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
     if (subjectId) {
-      loadData();
+      loadData(0);
+    }
+
+    if (isSupabaseConfigured) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (session && subjectId) {
+          loadData(0);
+        }
+      });
+      return () => {
+        subscription.unsubscribe();
+      };
     }
   }, [subjectId]);
+
+  // Auto-refresh units in background if they were recently created or being analyzed
+  useEffect(() => {
+    if (!subjectId || !subject || units.length > 0) return;
+
+    let pollAttempts = 0;
+    const interval = setInterval(async () => {
+      pollAttempts++;
+      try {
+        const freshUnits = await api.listUnits(subjectId);
+        if (freshUnits && freshUnits.length > 0) {
+          setUnits(freshUnits);
+          const allIds = new Set<string>();
+          freshUnits.forEach(unit => {
+            unit.topics.forEach(t => {
+              if (!t.is_excluded) allIds.add(t.id);
+            });
+          });
+          setSelectedTopicIds(allIds);
+          clearInterval(interval);
+        }
+      } catch {
+        // silent background poll
+      }
+      if (pollAttempts >= 8) {
+        clearInterval(interval);
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [subjectId, subject, units.length]);
 
   useEffect(() => {
     if (searchParams?.get("open_builder") === "true") {
@@ -240,9 +300,25 @@ function SubjectWorkspaceContent() {
       <div className="max-w-7xl mx-auto px-4 py-24 text-center space-y-4">
         <AlertCircle className="w-10 h-10 text-[#EF4444] mx-auto" />
         <h2 className="text-xl font-bold text-[#F9F9F9]">Subject Not Found</h2>
-        <Link href="/dashboard" className="text-sm font-semibold text-[#24EACE] hover:underline">
-          Return to Dashboard
-        </Link>
+        {error && (
+          <p className="text-xs text-[#A7B8AE] max-w-md mx-auto">{error}</p>
+        )}
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <button
+            onClick={() => {
+              setLoading(true);
+              setError(null);
+              loadData(0);
+            }}
+            className="px-4 py-2 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] font-bold text-xs transition inline-flex items-center gap-1.5 cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Retry
+          </button>
+          <Link href="/dashboard" className="px-4 py-2 rounded-xl bg-[#142019] text-[#A7B8AE] hover:text-[#F9F9F9] border border-[#26382D] text-xs font-semibold transition">
+            Return to Dashboard
+          </Link>
+        </div>
       </div>
     );
   }

@@ -7,7 +7,16 @@ from backend.app.services.ai_service import ai_service
 
 class ScoringService:
     @staticmethod
-    def score_mcq_answer(question: Question, selected_option_id: Optional[str]) -> tuple[float, bool, str]:
+    def _normalize_opt(opt: Optional[str]) -> str:
+        if not opt:
+            return ""
+        s = str(opt).strip()
+        if s.lower().startswith("opt_"):
+            s = s[4:]
+        return s.upper()
+
+    @classmethod
+    def score_mcq_answer(cls, question: Question, selected_option_id: Optional[str]) -> tuple[float, bool, str]:
         """
         Deterministic application-code MCQ scoring.
         Returns (awarded_marks, is_correct, explanation)
@@ -15,7 +24,7 @@ class ScoringService:
         if not selected_option_id:
             return 0.0, False, "No option selected."
 
-        is_correct = (selected_option_id == question.correct_option_id)
+        is_correct = (cls._normalize_opt(selected_option_id) == cls._normalize_opt(question.correct_option_id))
         awarded = float(question.marks) if is_correct else 0.0
         return awarded, is_correct, question.explanation or ""
 
@@ -42,6 +51,9 @@ class ScoringService:
             return attempt # Idempotent - already graded
 
         test = db.query(Test).filter(Test.id == attempt.test_id).first()
+        if not test:
+            return attempt
+
         test_questions = db.query(TestQuestion).filter(TestQuestion.test_id == test.id).order_by(TestQuestion.order_index).all()
         question_ids = [tq.question_id for tq in test_questions]
         questions = {q.id: q for q in db.query(Question).filter(Question.id.in_(question_ids)).all()}
