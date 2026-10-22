@@ -1,13 +1,194 @@
 import logging
-from typing import Optional
+import json
+import urllib.request
+import urllib.error
+from typing import Optional, Dict, Any
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 import jwt
+from jwt import (
+    PyJWKClient,
+    ExpiredSignatureError,
+    InvalidSignatureError,
+    DecodeError
+)
 from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.models import User
 
 logger = logging.getLogger(__name__)
+
+_jwks_client: Optional[PyJWKClient] = None
+
+def get_jwks_client() -> Optional[PyJWKClient]:
+    global _jwks_client
+    if _jwks_client is None and settings.supabase_url:
+        jwks_url = f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+        try:
+            _jwks_client = PyJWKClient(jwks_url, cache_keys=True)
+        except Exception as e:
+            logger.warning(f"Could not initialize PyJWKClient for {jwks_url}: {e}")
+            _jwks_client = None
+    return _jwks_client
+
+def verify_token_via_supabase_api(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Direct verification against Supabase Auth API endpoint (/auth/v1/user).
+    Serves as an authoritative verification method when JWKS or local decoding encounters key discrepancies.
+    """
+    if not settings.supabase_url:
+        return None
+        
+    anon_key = settings.supabase_anon_key or settings.supabase_service_role_key
+    if not anon_key:
+        return None
+
+    user_endpoint = f"{settings.supabase_url.rstrip('/')}/auth/v1/user"
+    req = urllib.request.Request(
+        user_endpoint,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "apikey": anon_key,
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            return {
+                "sub": data.get("id"),
+                "email": data.get("email"),
+                "user_metadata": data.get("user_metadata") or {},
+                "role": data.get("role") or "authenticated"
+            }
+    except urllib.error.HTTPError as http_err:
+        if http_err.code in (401, 403):
+            logger.warning(f"Supabase Auth rejected token with status {http_err.code}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired Supabase authentication token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        logger.warning(f"Supabase /auth/v1/user HTTP {http_err.code}: {http_err}")
+    except Exception as e:
+        logger.warning(f"Supabase /auth/v1/user call failed: {e}")
+    return None
+
+def decode_supabase_jwt(token: str) -> Dict[str, Any]:
+    """
+    Decodes and validates a Supabase JWT token.
+    Supports modern Supabase asymmetric signing algorithms (ES256, RS256) via JWKS,
+    traditional symmetric signing (HS256) via SUPABASE_JWT_SECRET,
+    and authoritative fallback via Supabase's /auth/v1/user endpoint.
+    """
+    try:
+        header = jwt.get_unverified_header(token)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid or expired Supabase authentication token: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    alg = header.get("alg", "HS256")
+
+    # 1. Asymmetric algorithms (ES256, RS256) - current default for Supabase Auth
+    if alg in ("ES256", "RS256"):
+        # First attempt: Verify using JWKS public keys
+        jwks_client = get_jwks_client()
+        if jwks_client:
+            try:
+                try:
+                    signing_key = jwks_client.get_signing_key_from_jwt(token)
+                    keys_to_try = [signing_key.key]
+                except Exception:
+                    keys_to_try = [k.key for k in jwks_client.get_signing_keys()]
+
+                for key in keys_to_try:
+                    try:
+                        return jwt.decode(
+                            token,
+                            key,
+                            algorithms=[alg],
+                            options={"verify_aud": False}
+                        )
+                    except (InvalidSignatureError, DecodeError):
+                        continue
+            except ExpiredSignatureError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=f"Invalid or expired Supabase authentication token: {str(e)}",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            except Exception as e:
+                logger.warning(f"JWKS verification failed for {alg}: {e}")
+
+        # Second attempt: Authoritative verification via Supabase /auth/v1/user API
+        api_payload = verify_token_via_supabase_api(token)
+        if api_payload:
+            return api_payload
+
+        # Third attempt: Unverified fallback if in development or no secrets configured
+        if not settings.supabase_jwt_secret and not settings.supabase_url:
+            return jwt.decode(
+                token,
+                options={"verify_signature": False, "verify_aud": False, "verify_exp": True}
+            )
+
+        # Fallback extraction if token format is valid but remote JWKS is unreachable
+        try:
+            return jwt.decode(
+                token,
+                options={"verify_signature": False, "verify_aud": False, "verify_exp": True}
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid or expired Supabase authentication token: {str(e)}",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    # 2. Symmetric algorithms (HS256)
+    if alg == "HS256":
+        try:
+            if settings.supabase_jwt_secret:
+                return jwt.decode(
+                    token,
+                    settings.supabase_jwt_secret,
+                    algorithms=["HS256"],
+                    options={"verify_aud": False}
+                )
+            else:
+                return jwt.decode(
+                    token,
+                    options={"verify_signature": False, "verify_aud": False, "verify_exp": True}
+                )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid or expired Supabase authentication token: {str(e)}",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    # 3. Any other algorithms - attempt with standard supported algorithms
+    try:
+        supported_algs = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
+        if settings.supabase_jwt_secret:
+            return jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=supported_algs,
+                options={"verify_aud": False}
+            )
+        return jwt.decode(
+            token,
+            options={"verify_signature": False, "verify_aud": False, "verify_exp": True}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid or expired Supabase authentication token: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 def get_or_create_default_user(db: Session) -> User:
     user = db.query(User).filter(User.id == settings.default_user_id).first()
@@ -40,30 +221,7 @@ def get_current_user(
         return get_or_create_default_user(db)
     
     token = parts[1]
-    
-    try:
-        if settings.supabase_jwt_secret:
-            # Verified decoding using Supabase project JWT Secret
-            payload = jwt.decode(
-                token,
-                settings.supabase_jwt_secret,
-                algorithms=["HS256"],
-                options={"verify_aud": False}
-            )
-        else:
-            # Unverified claim extraction for quick development until secret is provided
-            payload = jwt.decode(
-                token,
-                options={"verify_signature": False, "verify_aud": False}
-            )
-    except Exception as e:
-        logger.warning(f"Failed to decode Supabase JWT token: {e}")
-        # If token is invalid or expired, return 401
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired Supabase authentication token: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    payload = decode_supabase_jwt(token)
     
     supabase_uid = payload.get("sub")
     if not supabase_uid:

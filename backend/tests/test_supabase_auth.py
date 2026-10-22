@@ -54,3 +54,41 @@ def test_invalid_bearer_token():
     )
     assert response.status_code == 401
     assert "Invalid or expired Supabase authentication token" in response.json()["detail"]
+
+def test_authenticated_supabase_es256_jwt_sync():
+    from unittest.mock import MagicMock, patch
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    public_key = private_key.public_key()
+    test_uid = "sb-es256-uuid-998877"
+
+    token = jwt.encode(
+        {
+            "sub": test_uid,
+            "email": "student_es256_fresh@supabase.io",
+            "user_metadata": {"full_name": "Supabase ES256 Student"},
+            "role": "authenticated",
+        },
+        private_key,
+        algorithm="ES256",
+        headers={"kid": "test-es256-kid"},
+    )
+
+    mock_signing_key = MagicMock()
+    mock_signing_key.key = public_key
+
+    mock_jwks = MagicMock()
+    mock_jwks.get_signing_key_from_jwt.return_value = mock_signing_key
+
+    with patch("backend.app.auth.get_jwks_client", return_value=mock_jwks):
+        response = client.get(
+            "/api/settings/status",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["active_user"]["id"] == test_uid
+        assert data["active_user"]["email"] == "student_es256_fresh@supabase.io"
+        assert data["active_user"]["name"] == "Supabase ES256 Student"
+
