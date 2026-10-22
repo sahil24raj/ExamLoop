@@ -56,8 +56,7 @@ ExamLoop turns uploaded course notes into personalized, interactive exam simulat
 ## 3. Required Links for Devpost Form
 
 - **Public GitHub Repository**:
-  `https://github.com/sahil24raj/Examloop-a-personal-exam-coach`
-  *(Also available at: `https://github.com/sahil24raj/ExamLoop`)*
+  `https://github.com/sahil24raj/Examloop-a-personal-ai-exam-coach`
 - **Demo Video URL**:
   *(Record a 1–3 minute walkthrough showing: (1) Logging in, (2) Uploading a document & topic extraction, (3) Generating a mock test, (4) Answering questions with timer, (5) Viewing instant score/feedback out of 10. Upload to YouTube / Loom / Google Drive as unlisted / public).*
 - **Live Demo (Optional)**:

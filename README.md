@@ -1,228 +1,188 @@
 <div align="center">
 
-# 🎯 ExamLoop
+# 🎓 ExamLoop — A Personal AI Exam Coach
 
-### Personalized, Source-Grounded & Adaptive Exam Preparation Engine
+### Turn Course Material & Lecture Notes into an Evidence-Grounded Revision Loop
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fsahil24raj%2FExamLoop&root-directory=frontend&env=NEXT_PUBLIC_API_URL&envDescription=Backend%20API%20URL%20(e.g.%20deployed%20FastAPI%20URL%20or%20http%3A%2F%2F127.0.0.1%3A8000)&project-name=examloop)
-[![Next.js 16](https://img.shields.io/badge/Next.js-16.4.2-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%20--%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-v3-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
-
-[![Devpost Learn AI Basics](https://img.shields.io/badge/Devpost_Hackathon-Build_With_AI:_Basics-blueviolet?style=for-the-badge&logo=devpost)](https://learn-ai-basics.devpost.com/)
+[![Devpost Hackathon](https://img.shields.io/badge/Devpost_Hackathon-Build_With_AI:_Basics-7057ff?style=for-the-badge&logo=devpost&logoColor=white)](https://learn-ai-basics.devpost.com/)
+[![Next.js 14](https://img.shields.io/badge/Next.js-14_App_Router-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Python_3.11+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-Auth_%26_PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-Dark_Emerald-065f46?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
 <br />
 
-**Turn your course material & lecture notes into an evidence-grounded revision loop:**  
-*Upload Material → Extract Topics → Diagnostic Test → Transparent Rubric Grading → Weakness Analysis → Targeted Retesting.*
+> 🏆 **Built for the [Devpost Build With AI: Basics Hackathon](https://learn-ai-basics.devpost.com/)**  
+> Developed using the official **Devpost Learn 6-Step Agent Skills Framework** (`1-start` → `6-ship`) to practice plan-first, spec-driven AI development.
 
-> 🏆 Built for the **[Devpost Build With AI: Basics](https://learn-ai-basics.devpost.com/)** Hackathon following the official 6-step agent skills curriculum (`1-start` → `6-ship`).  
-> 📑 **Curriculum Artifacts**: [Scope](file:///devpost/scope.md) &bull; [PRD](file:///devpost/prd.md) &bull; [Technical Spec](file:///devpost/spec.md) &bull; [Build Checklist](file:///devpost/checklist.md) &bull; [Interactive App Map](file:///devpost/app-map.html) &bull; [Submission Guide](file:///devpost/submission.md)
+<br />
+
+| 📄 [Scope](devpost/scope.md) | 📋 [PRD](devpost/prd.md) | ⚙️ [Tech Spec](devpost/spec.md) | ✅ [Build Checklist](devpost/checklist.md) | 🗺️ [Interactive App Map](devpost/app-map.html) | 🚀 [Devpost Submission](devpost/submission.md) |
+|:---:|:---:|:---:|:---:|:---:|:---:|
 
 </div>
 
 ---
 
-## 🌟 The Problem & The Solution
+## 💡 What is ExamLoop?
 
-| The Traditional AI Study Problem ❌ | ExamLoop Solution 🎯 |
-|:---|:---|
-| Generic flashcards with hallucinations | **100% Source-Grounded Questions:** Every question & criterion is explicitly cited with document name and exact page numbers. |
-| Subjective answers evaluated with arbitrary grades | **Transparent Multi-Criteria Rubrics:** Point breakdown per rubric item, extracted student excerpts, and explicit identification of missing concepts. |
-| Inconsistent AI grading for multiple-choice | **Deterministic Objective Scoring:** MCQs are evaluated mathematically in code with zero prompt variance. |
-| Unexplained recommendations | **Explainable Adaptive Follow-up:** "Why this test?" rationale transparently explains which weak concepts triggered which revision questions. |
-| Costly API calls for basic testing | **Resilient Hierarchical Fallbacks:** NVIDIA Nemotron free tier with immediate reasoning fallback + offline zero-token DBMS demo seeder. |
+Students often spend 80% of their exam preparation passively reading notes or highlighting textbooks, only to freeze during the actual exam. **ExamLoop solves passive study habits by replacing them with the Feynman technique and active recall.**
 
----
-
-## 🚀 1-Click Deployment to Vercel
-
-You can auto-deploy the frontend instantly using Vercel's pre-configured monorepo template:
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fsahil24raj%2FExamLoop&root-directory=frontend&env=NEXT_PUBLIC_API_URL&envDescription=Backend%20API%20URL%20(e.g.%20deployed%20FastAPI%20URL%20or%20http%3A%2F%2F127.0.0.1%3A8000)&project-name=examloop)
-
-### Manual Vercel Setup (Step-by-Step)
-1. Fork or push this repository to your GitHub account: `https://github.com/sahil24raj/ExamLoop`
-2. Go to [Vercel Dashboard](https://vercel.com/new) and click **"Add New Project"**.
-3. Import your **ExamLoop** repository.
-4. In the Project Configuration:
-   - **Framework Preset**: Next.js (automatically detected)
-   - **Root Directory**: Click *Edit* and select `frontend` (or leave default if using the included `vercel.json`)
-5. In **Environment Variables**:
-   - `NEXT_PUBLIC_API_URL`: Your hosted FastAPI backend URL (e.g. `https://your-backend.railway.app` or `https://your-backend.onrender.com`).
-6. Click **Deploy**! 🚀
+ExamLoop turns any uploaded syllabus, lecture slides, or PDF notes into personalized, interactive exam simulations:
+1. **Material Ingestion**: Upload course PDFs or DOCX files; ExamLoop automatically extracts key syllabus topics.
+2. **Flexible Test Builder**: Choose between **Objective (MCQs)** or **Subjective (Free response)** tests, set difficulty levels (Easy, Medium, Hard), and select topic coverage.
+3. **Timed Test Runner**: Take tests in a distraction-free dark interface with live countdown timers, question navigation, and autosave.
+4. **Diagnostic AI Grading**: Submissions are graded instantly with a score out of 10, itemized explanations for every answer, and actionable coaching tips.
+5. **The Exam Loop**: Performance history is saved, allowing students to re-test on specific gaps until mastery is achieved.
 
 ---
 
-## 🏗️ System Architecture
+## 🏆 Devpost Learn AI Basics — Curriculum & Proof of Concept
+
+This project strictly adheres to the **Devpost Learn AI Basics** curriculum, packaging the planning, architecture, verified slices, and code tour:
+
+```
+devpost/
+├── scope.md          # Step 2: The unique kernel, persona & POC boundary (approved)
+├── prd.md            # Step 3: Complete product requirements & core journey (approved)
+├── spec.md           # Step 4: Technical architecture & component contracts (approved)
+├── checklist.md      # Step 5: 5 verified build slices & code tour record (approved)
+├── app-map.html      # Step 5: Standalone interactive SVG app map & tour
+└── submission.md     # Step 6: Complete Devpost submission form write-up & guide
+```
+
+### The 6-Step Agent Skills Journey:
+* **`1-start`**: Learner profile established, defining experience with plan-first workflows.
+* **`2-scope`**: Sharpened the unique kernel: a closed-loop exam engine with diagnostic scoring out of 10.
+* **`3-prd`**: Product definition detailing the core journey, dark emerald UI tokens, and states.
+* **`4-spec`**: Technical blueprint specifying Next.js 14, FastAPI, Supabase Auth (ES256/RS256 JWKS), and Groq/OpenAI JSON schemas.
+* **`5-build`**: Delivered 5 verified incremental build slices, hands-on review, and code tour.
+* **`6-ship`**: Packaged for public GitHub distribution and Devpost evaluation.
+
+---
+
+## 🔄 The ExamLoop Core Engine
 
 ```mermaid
-graph TD
-    A[Student Uploads Notes / PDF] --> B[PyMuPDF Page-Preserving Extractor]
-    B --> C[BM25 Lexical & Inverted Index]
-    C --> D[Curriculum & Unit Hierarchy Structurer]
-    D --> E[Diagnostic Test Generator - NVIDIA Nemotron / Qwen]
-    E --> F[Student Test Runner with Anti-Leak Shield]
-    F --> G{Evaluation Engine}
-    G -->|Objective MCQs| H[Deterministic Exact Matching Code]
-    G -->|Subjective Answers| I[Transparent Multi-Criteria Rubric Evaluator]
-    H --> J[Mastery Profile & Weakness Diagnostics]
-    I --> J
-    J --> K[Explainable Adaptive Follow-Up Generator]
-    K --> E
-```
-
-### Repository Structure
-
-```
-ExamLoop/
-├── .github/                       # GitHub Actions workflows & CI/CD
-├── backend/                       # High-performance FastAPI backend
-│   ├── app/
-│   │   ├── config.py              # App settings & LLM model hierarchy
-│   │   ├── database.py            # SQLite & PostgreSQL database session factory
-│   │   ├── models.py              # SQLModel/SQLAlchemy relational models
-│   │   ├── schemas.py             # Pydantic v2 validation contracts
-│   │   ├── fixtures/
-│   │   │   └── dbms_demo.py       # Zero-token verified DBMS demo suite
-│   │   ├── routers/               # REST API endpoints (subjects, documents, tests, grading)
-│   │   └── services/              # Document, AI, BM25 retrieval, scoring, & adaptive services
-│   ├── tests/                     # Comprehensive 17-suite automated test suite
-│   └── requirements.txt           # Python dependencies
-├── frontend/                      # Modern Next.js 16 Web Application
-│   ├── src/
-│   │   ├── app/                   # App Router pages (Dashboard, Subjects, Tests, Results, Settings)
-│   │   ├── components/            # UI components (Navbar, EvidenceModal, Timer)
-│   │   └── lib/                   # Typed API client & data utilities
-│   ├── public/                    # Static branding & assets
-│   ├── vercel.json                # Frontend Vercel configuration
-│   └── package.json               # Node.js dependencies & scripts
-├── docs/                          # Architecture PRDs & Task roadmaps
-├── .env.example                   # Backend environment template
-├── vercel.json                    # Root Vercel monorepo auto-build config
-└── README.md                      # Comprehensive Hackathon & Developer Guide
+graph LR
+    A[Upload Notes / PDF] --> B[Fast Topic Extraction]
+    B --> C[Configure Mock Test]
+    C --> D[Distraction-Free Timed Exam]
+    D --> E[Instant AI Rubric Evaluation]
+    E --> F[Score out of 10 & Feedback]
+    F -->|Targeted Retest| C
 ```
 
 ---
 
-## 🎬 3-Minute Hackathon Demo Script
+## ✨ Key Features
+
+| Feature | Description |
+|:---|:---|
+| **📄 Multi-Format Ingestion** | Upload lecture PDFs, Word documents (.docx), or paste raw text; instant parsing with zero UI lag. |
+| **🎯 Objective & Subjective Tests** | Generate 4-option MCQs with clear reasoning, or conceptual free-response questions with rubric keys. |
+| **⏱️ Timed Test Runner** | Full-screen distraction-free interface with question stepper, countdown timer, and local autosave. |
+| **📊 Transparent AI Grading** | Every attempt receives a normalized score out of 10, strengths breakdown, and itemized feedback for every question. |
+| **🛡️ Anti-Cheat Security** | Correct answers, solutions, and rubric weights are strictly withheld from client-side network payloads until submission. |
+| **💾 Persistent Dashboard** | All subjects, materials, and test attempts are securely stored in PostgreSQL under your authenticated account. |
+
+---
+
+## 🏗️ Technical Architecture & Stack
+
+- **Frontend**: Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS, Lucide React icons.
+- **Backend**: FastAPI (Python 3.11+), Uvicorn, Pydantic v2 data validation, SQLAlchemy ORM.
+- **Authentication & Database**: Supabase Auth (with dynamic asymmetric ES256/RS256 JWKS JWT verification), managed PostgreSQL.
+- **Document Processing**: PyPDF2, pdfplumber, python-docx.
+- **AI & Evaluation Service**: Groq API (LLaMA-3.3-70B-Versatile) / OpenAI (GPT-4o-mini) with strict JSON schema response enforcement.
+
+---
+
+## 🎬 3-Minute Hackathon Demo Script (For Judges)
 
 For Hackathon judges evaluating the user experience, follow this step-by-step walkthrough:
 
-1. **One-Click Instant Seed (`/dashboard`):**
-   - Click the green banner: **"Load Verified DBMS Demo"**.
-   - Instantly seeds a university-grade *Database Management Systems* curriculum with 4 foundational units: *Relational Normalization*, *SQL Joins*, *ACID Transactions*, and *B+ Tree Indexing*.
-2. **Curriculum & Source Grounding (`/subjects/[id]`):**
-   - Review extracted topics and their source citations.
-   - Click **"Generate Diagnostic Test"** to witness NVIDIA Nemotron creating source-grounded questions and rubric criteria.
-3. **Secure Student Test Taking (`/tests/[id]`):**
-   - Experience the distraction-free exam interface with real-time countdown timer.
-   - Notice the security guarantee: correct answers, solutions, and rubric weights are strictly withheld from client-side network payloads until submission.
-4. **Transparent Rubric Breakdown (`/results/[id]`):**
-   - View deterministic MCQ grading.
-   - Expand subjective answers to view criterion-by-criterion marks, exact quotes of student evidence, and identified misconceptions.
-   - Click **"View Source Evidence"** to open the side-drawer citation matching the lecture notes.
-5. **Closing the Loop (`Adaptive Follow-up`):**
-   - Read the **"Why This Follow-up Test?"** section explaining why specific questions were chosen to reinforce detected gaps.
-   - Click **"Generate Targeted Follow-up"** to experience true adaptive learning.
+1. **Dashboard & Subject Creation (`/dashboard`):**
+   - Sign in and click **"+ New Subject"** (e.g. *Computer Networks* or *Operating Systems*).
+2. **Material Ingestion (`/subjects/[id]`):**
+   - Upload course notes or syllabus PDF.
+   - Watch extracted topic tags appear dynamically in seconds.
+3. **Build Mock Test (`TestBuilderModal`):**
+   - Click **"Build Mock Test"**.
+   - Select question type (Objective / Subjective), question count (5), and difficulty (Medium).
+   - Click **"Generate Test"** (AI crafts questions within ~3 seconds).
+4. **Take Timed Exam (`/tests/[id]`):**
+   - Answer the questions against the real-time countdown timer.
+   - Click **"Submit Test"**.
+5. **Instant Evaluation (`/results/[id]`):**
+   - View your overall score out of 10.
+   - Review itemized critique explaining why each answer was right or wrong.
+   - Click **"Retest"** to loop back and conquer your identified weak topics!
 
 ---
 
-## ⚡ Local Development Setup
+## ⚡ Quickstart & Local Setup
 
 ### 1. Prerequisites
 - **Node.js 18+** & npm
-- **Python 3.10+** (Fully compatible with Python 3.14)
+- **Python 3.10+**
 - Git
 
 ### 2. Backend Setup
 ```bash
-# Navigate to backend
+# 1. Navigate to backend
 cd backend
 
-# Install dependencies
+# 2. Create virtual environment & install dependencies
+python -m venv venv
+.\venv\Scripts\activate   # On Windows
+# source venv/bin/activate # On macOS/Linux
 pip install -r requirements.txt
 
-# Run automated test suite (Zero-token verification)
-python -m pytest tests/ -v
+# 3. Configure environment
+cp .env.example .env
 
-# Start FastAPI server
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+# 4. Start the FastAPI server
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-- API is running at: `http://127.0.0.1:8000`
-- Interactive OpenAPI Docs: `http://127.0.0.1:8000/docs`
+API runs at: `http://127.0.0.1:8000` | OpenAPI Swagger: `http://127.0.0.1:8000/docs`
 
 ### 3. Frontend Setup
 ```bash
-# In a new terminal, navigate to frontend
+# 1. Open a new terminal and navigate to frontend
 cd frontend
 
-# Install dependencies
+# 2. Install dependencies
 npm install
 
-# Start Next.js development server
+# 3. Start Next.js development server
 npm run dev
 ```
-- Web interface is running at: `http://localhost:3000`
+Web app runs at: `http://localhost:3000`
 
 ---
 
-## 🔐 Environment Variables
+## 🧪 Automated Test Suite
 
-### Backend (`.env`)
-| Variable | Description | Default |
-|:---|:---|:---|
-| `APP_ENV` | Application environment | `development` |
-| `DATABASE_URL` | Database connection string | `sqlite:///./backend/examloop.db` |
-| `DEMO_MODE` | If `true`, enables zero-token deterministic fixtures | `true` |
-| `OPENROUTER_API_KEY` | OpenRouter / Nebius AI API token | `your_api_key_here` |
-| `OPENROUTER_BASE_URL` | AI API base URL endpoint | `https://openrouter.ai/api/v1` |
-| `OPENROUTER_FAST_MODEL` | Primary high-throughput model | `google/gemini-2.5-flash` |
-| `STORAGE_DIR` | Directory for uploaded student documents | `./backend/storage` |
-
-### Frontend (`frontend/.env.local`)
-| Variable | Description | Default |
-|:---|:---|:---|
-| `NEXT_PUBLIC_API_URL` | Endpoint of the FastAPI backend | `http://127.0.0.1:8000` |
-
----
-
-## 🧪 Automated Testing & Reliability
-
-ExamLoop includes an automated test suite verifying edge cases, prompt injection safety, deterministic scoring, and anti-leakage guards:
+ExamLoop includes automated tests verifying authentication, token verification, schema validation, and deterministic grading:
 
 ```bash
 python -m pytest backend/tests/ -v
 ```
 
-```
-backend/tests/test_examloop.py::test_page_chunking_preserves_page_numbers PASSED
-backend/tests/test_examloop.py::test_empty_or_scanned_pdf_fails_gracefully PASSED
-backend/tests/test_examloop.py::test_invalid_ai_json_repair_and_clean PASSED
-backend/tests/test_examloop.py::test_mcq_scoring_deterministic PASSED
-backend/tests/test_examloop.py::test_rubric_sum_validation PASSED
-backend/tests/test_examloop.py::test_subjective_blank_answer_scores_zero_deterministically PASSED
-backend/tests/test_examloop.py::test_subject_scoped_retrieval_excludes_deleted_and_other_subjects PASSED
-backend/tests/test_examloop.py::test_prompt_injection_safety_in_student_answer PASSED
-backend/tests/test_examloop.py::test_adaptive_selection_responds_to_weak_topics PASSED
-backend/tests/test_examloop.py::test_duplicate_submission_is_idempotent PASSED
-backend/tests/test_examloop.py::test_student_test_view_does_not_leak_answers PASSED
-backend/tests/test_examloop.py::test_end_to_end_smoke_flow PASSED
-backend/tests/test_syllabus_upgrade.py::test_syllabus_hierarchy_extraction_explicit_vs_inferred PASSED
-backend/tests/test_syllabus_upgrade.py::test_custom_test_generation_exact_counts_and_subtypes PASSED
-backend/tests/test_syllabus_upgrade.py::test_student_question_view_security PASSED
-backend/tests/test_syllabus_upgrade.py::test_normalized_score_calculation_out_of_10 PASSED
-backend/tests/test_syllabus_upgrade.py::test_idempotent_attempt_submission PASSED
+---
 
-============================= 17 passed in 2.97s ==============================
-```
+## 📦 Devpost Submission Summary
+
+- **Hackathon**: [Devpost Build With AI: Basics](https://learn-ai-basics.devpost.com/)
+- **Project Name**: `ExamLoop — A Personal AI Exam Coach`
+- **Public GitHub Repository**: [Examloop-a-personal-ai-exam-coach](https://github.com/sahil24raj/Examloop-a-personal-ai-exam-coach)
+- **Detailed Submission Form Copy**: See [`devpost/submission.md`](devpost/submission.md)
+- **Interactive App Map**: See [`devpost/app-map.html`](devpost/app-map.html)
 
 ---
 
-## 🤝 Contributing & License
+## 🤝 License
 
-ExamLoop is open-source software built for educational empowerment. Distributed under the [MIT License](LICENSE).
-Contributions, bug reports, and feedback are welcome!
+Distributed under the [MIT License](LICENSE). Built with pride for the Devpost Learn AI Basics Hackathon 2026.
