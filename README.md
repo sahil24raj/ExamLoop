@@ -12,10 +12,15 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v3-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
+[![Devpost Learn AI Basics](https://img.shields.io/badge/Devpost_Hackathon-Build_With_AI:_Basics-blueviolet?style=for-the-badge&logo=devpost)](https://learn-ai-basics.devpost.com/)
+
 <br />
 
-**Turn your university lecture notes into an evidence-grounded revision loop:**  
-*Upload Material → Extract Structured Units → Diagnostic Test → Transparent Rubric Grading → Weakness Analysis → Adaptive Follow-up.*
+**Turn your course material & lecture notes into an evidence-grounded revision loop:**  
+*Upload Material → Extract Topics → Diagnostic Test → Transparent Rubric Grading → Weakness Analysis → Targeted Retesting.*
+
+> 🏆 Built for the **[Devpost Build With AI: Basics](https://learn-ai-basics.devpost.com/)** Hackathon following the official 6-step agent skills curriculum (`1-start` → `6-ship`).  
+> 📑 **Curriculum Artifacts**: [Scope](file:///devpost/scope.md) &bull; [PRD](file:///devpost/prd.md) &bull; [Technical Spec](file:///devpost/spec.md) &bull; [Build Checklist](file:///devpost/checklist.md) &bull; [Interactive App Map](file:///devpost/app-map.html) &bull; [Submission Guide](file:///devpost/submission.md)
 
 </div>
 

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExamLoop — Interactive App Map & Code Tour</title>
+  <style>
+    :root {
+      --bg: #09090b;
+      --card-bg: #18181b;
+      --card-border: #27272a;
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --text-main: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --accent: #38bdf8;
+      --code-bg: #121214;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1.5rem;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--primary);
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 0.5rem;
+    }
+    p.lead {
+      color: var(--text-muted);
+      font-size: 1.15rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .card h2 {
+      font-size: 1.35rem;
+      color: #ffffff;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .diagram-container {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      text-align: center;
+    }
+    svg {
+      max-width: 100%;
+      height: auto;
+    }
+    .route-step {
+      border-left: 3px solid var(--primary);
+      padding-left: 1.25rem;
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+    .route-step h3 {
+      font-size: 1.1rem;
+      color: #ffffff;
+      margin-bottom: 0.35rem;
+    }
+    .route-step code {
+      background: var(--code-bg);
+      color: var(--primary);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .route-step p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-top: 0.35rem;
+    }
+    .pointer-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .pointer-item {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .pointer-item strong {
+      color: var(--text-main);
+      display: block;
+      margin-bottom: 0.35rem;
+    }
+    .pointer-item code {
+      color: var(--accent);
+      font-size: 0.85rem;
+      display: block;
+      margin-bottom: 0.5rem;
+      word-break: break-all;
+    }
+    .pointer-item p {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    details {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.75rem;
+    }
+    summary {
+      font-weight: 600;
+      color: var(--text-main);
+      cursor: pointer;
+      user-select: none;
+    }
+    details[open] summary {
+      margin-bottom: 0.75rem;
+      color: var(--primary);
+    }
+    details pre {
+      background: #000000;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      color: #e4e4e7;
+    }
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: rgba(56, 189, 248, 0.08);
+      padding: 1rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0;
+    }
+    .callout h4 {
+      color: var(--accent);
+      margin-bottom: 0.35rem;
+    }
+    .callout p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--card-border);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="badge">Architecture & Code Tour</span>
+      <h1>ExamLoop Application Map</h1>
+      <p class="lead">A visual guide to ExamLoop's core execution path, key components, and reusable engineering practices.</p>
+    </header>
+
+    <!-- Core Loop Flowchart -->
+    <section class="card">
+      <h2>1. The End-to-End Execution Path</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1rem;">
+        How a learner's uploaded notes turn into a personalized, AI-graded mock test session.
+      </p>
+      
+      <div class="diagram-container">
+        <svg viewBox="0 0 800 220" xmlns="http://www.w3.org/2000/svg">
+          <!-- Background Grid / Connectors -->
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981"/>
+            </marker>
+          </defs>
+          
+          <!-- Nodes -->
+          <!-- Step 1 -->
+          <rect x="20" y="70" width="130" height="70" rx="8" fill="#18181b" stroke="#3f3f46" stroke-width="2"/>
+          <text x="85" y="98" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">1. Study Notes</text>
+          <text x="85" y="118" fill="#10b981" font-size="10" text-anchor="middle">PDF / DOCX Upload</text>
+
+          <!-- Arrow 1 -> 2 -->
+          <line x1="150" y1="105" x2="185" y2="105" stroke="#10b981" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <!-- Step 2 -->
+          <rect x="190" y="70" width="130" height="70" rx="8" fill="#18181b" stroke="#3f3f46" stroke-width="2"/>
+          <text x="255" y="98" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">2. Fast Extraction</text>
+          <text x="255" y="118" fill="#38bdf8" font-size="10" text-anchor="middle">Topic Discovery</text>
+
+          <!-- Arrow 2 -> 3 -->
+          <line x1="320" y1="105" x2="355" y2="105" stroke="#10b981" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <!-- Step 3 -->
+          <rect x="360" y="70" width="130" height="70" rx="8" fill="#18181b" stroke="#3f3f46" stroke-width="2"/>
+          <text x="425" y="98" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">3. AI Test Builder</text>
+          <text x="425" y="118" fill="#10b981" font-size="10" text-anchor="middle">Groq / OpenAI JSON</text>
+
+          <!-- Arrow 3 -> 4 -->
+          <line x1="490" y1="105" x2="525" y2="105" stroke="#10b981" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <!-- Step 4 -->
+          <rect x="530" y="70" width="120" height="70" rx="8" fill="#18181b" stroke="#3f3f46" stroke-width="2"/>
+          <text x="590" y="98" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">4. Test Runner</text>
+          <text x="590" y="118" fill="#fbbf24" font-size="10" text-anchor="middle">Timed Exam UI</text>
+
+          <!-- Arrow 4 -> 5 -->
+          <line x1="650" y1="105" x2="675" y2="105" stroke="#10b981" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <!-- Step 5 -->
+          <rect x="680" y="70" width="105" height="70" rx="8" fill="#18181b" stroke="#10b981" stroke-width="2"/>
+          <text x="732" y="98" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">5. Graded Score</text>
+          <text x="732" y="118" fill="#10b981" font-size="10" text-anchor="middle">Rubric /10 + Tips</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- Guided Code Route -->
+    <section class="card">
+      <h2>2. Guided Code Tour</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+        Key stops in the codebase that power this journey:
+      </p>
+
+      <div class="route-step">
+        <h3>Stop 1: Test Builder Modal UI</h3>
+        <code>frontend/src/components/TestBuilderModal.tsx</code>
+        <p>
+          Renders the interactive test configuration dialog where learners choose between Objective and Subjective tests, configure question counts, difficulty sliders, and select specific extracted topics.
+        </p>
+      </div>
+
+      <div class="route-step">
+        <h3>Stop 2: LLM Generation & Rubric Pipeline</h3>
+        <code>backend/app/services/ai_service.py</code>
+        <p>
+          Constructs system prompts with strict JSON schemas for Groq / OpenAI. Formulates the prompt based on material chunks, ensures all MCQs have 4 distinct options, and provides detailed rationale for every answer.
+        </p>
+      </div>
+
+      <div class="route-step">
+        <h3>Stop 3: Test Creation & Submission Endpoints</h3>
+        <code>backend/app/routers/tests.py</code>
+        <p>
+          Handles authenticated routes <code>POST /api/tests/generate</code> and <code>POST /api/tests/{id}/submit</code>. Manages transaction isolation in PostgreSQL and delegates grading to the evaluation engine.
+        </p>
+      </div>
+
+      <div class="route-step">
+        <h3>Stop 4: Diagnostic Results & Feedback Screen</h3>
+        <code>frontend/src/app/results/[id]/page.tsx</code>
+        <p>
+          Displays the completed attempt card with circular score meter, time taken, strengths breakdown, and question-by-question comparative feedback against ideal answers.
+        </p>
+      </div>
+    </section>
+
+    <!-- "To Change This, Start Here" -->
+    <section class="card">
+      <h2>3. "To Change This, Start Here" Reference Pointers</h2>
+      <div class="pointer-grid">
+        <div class="pointer-item">
+          <strong>Modify Question Generation Prompt</strong>
+          <code>backend/app/services/ai_service.py</code>
+          <p>Update <code>generate_test_questions()</code> to tweak question formats, difficulty prompts, or instructions.</p>
+        </div>
+
+        <div class="pointer-item">
+          <strong>Add Document Formats (e.g. TXT/EPUB)</strong>
+          <code>backend/app/services/document_parser.py</code>
+          <p>Add text extraction handlers for new file types during upload.</p>
+        </div>
+
+        <div class="pointer-item">
+          <strong>Adjust Brand Colors & Theme</strong>
+          <code>frontend/tailwind.config.ts</code>
+          <p>Tune primary emerald accents or dark zinc surface hex tokens.</p>
+        </div>
+
+        <div class="pointer-item">
+          <strong>JWT Authentication Rules</strong>
+          <code>backend/app/dependencies.py</code>
+          <p>Configure Supabase JWKS verification and asymmetric token decoding.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- A Practice to Reuse -->
+    <section class="card">
+      <h2>4. A Practice to Reuse</h2>
+      <div class="callout">
+        <h4>Schema-Enforced LLM Responses with Automated Verification</h4>
+        <p>
+          Instead of asking the LLM for unstructured free-text answers and hoping regex can parse it, ExamLoop enforces strict Pydantic v2 schemas and JSON mode. This eliminates hallucinations in grading, prevents API breakages, and ensures UI components always receive reliable, typed data structures.
+        </p>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.95rem;">
+        <strong>How to run locally:</strong><br>
+        Backend: <code>uvicorn app.main:app --reload --port 8000</code><br>
+        Frontend: <code>npm run dev</code> (runs on port 3000)
+      </p>
+    </section>
+
+    <footer>
+      <p>ExamLoop &bull; Devpost Learn AI Basics Hackathon &bull; Built with pride &bull; 2026</p>
+    </footer>
+  </div>
+</body>
+</html>

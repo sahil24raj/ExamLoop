@@ -39,6 +39,7 @@ frontend/.env
 frontend/.env*.local
 backend/.env
 backend/.env*.local
+devpost/learner-profile.md
 
 # Vercel & IDE
 .vercel
