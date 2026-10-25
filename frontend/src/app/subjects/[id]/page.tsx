@@ -461,7 +461,7 @@ function SubjectWorkspaceContent() {
             <label className="border-2 border-dashed border-[#26382D] hover:border-[#24EACE]/60 rounded-xl p-5 flex flex-col items-center justify-center cursor-pointer bg-[#142019] transition group">
               <UploadCloud className="w-6 h-6 text-[#24EACE] group-hover:scale-110 transition mb-1" />
               <span className="text-xs font-bold text-[#F9F9F9]">Upload PDF or TXT</span>
-              <span className="text-[10px] text-[#A7B8AE]">Drag & drop or click to add material</span>
+              <span className="text-[10px] text-[#A7B8AE]">Drag & drop or click to add material (up to 100MB)</span>
               <input
                 type="file"
                 accept=".pdf,.txt"

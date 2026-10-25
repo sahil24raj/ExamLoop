@@ -19,19 +19,10 @@ class StorageService:
 
     async def save_file(self, subject_id: str, file: UploadFile) -> tuple[str, str, int, str]:
         """
-        Validates and saves file in subject-isolated directory.
+        Validates and saves file in subject-isolated directory using memory-efficient chunked streaming.
+        Supports large PDF uploads up to max_upload_size_bytes (default 100MB).
         Returns (stored_filename, absolute_path, file_size, mime_type)
         """
-        # Read content
-        content = await file.read()
-        file_size = len(content)
-
-        if file_size > settings.max_upload_size_bytes:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File exceeds maximum allowed size ({settings.max_upload_size_bytes // (1024*1024)}MB)."
-            )
-
         mime = file.content_type or "application/octet-stream"
         filename = file.filename or "upload"
         ext = os.path.splitext(filename)[1].lower()
@@ -49,8 +40,22 @@ class StorageService:
         safe_name = f"{unique_id}_{self.sanitize_filename(filename)}"
         target_path = subject_dir / safe_name
 
+        max_bytes = settings.max_upload_size_bytes
+        file_size = 0
+
         with open(target_path, "wb") as f:
-            f.write(content)
+            while chunk := await file.read(1024 * 1024):  # 1MB buffer
+                file_size += len(chunk)
+                if file_size > max_bytes:
+                    f.close()
+                    if target_path.exists():
+                        target_path.unlink()
+                    limit_mb = max_bytes // (1024 * 1024)
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"File exceeds maximum allowed size of {limit_mb}MB."
+                    )
+                f.write(chunk)
 
         return safe_name, str(target_path), file_size, mime
 

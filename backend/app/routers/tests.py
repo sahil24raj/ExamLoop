@@ -593,15 +593,34 @@ def create_custom_test(
         topics_data = [{"id": t.id, "name": t.name, "description": t.description} for t in selected_topics]
         target_topic_ids = [t.id for t in selected_topics]
 
-    # 2. Retrieve supporting evidence for reference-grounded generation
-    topic_query_str = " ".join([t["name"] + " " + (t.get("description") or "") for t in topics_data])
-    evidence = retrieval_service.search_subject_chunks(
-        db=db,
-        subject_id=subject_id,
-        query=topic_query_str,
-        top_k=10
-    )
+    # 2. Retrieve supporting evidence per topic for complete, topic-grounded coverage from PDF
+    evidence_by_id = {}
+    for t in topics_data:
+        t_query = f"{t['name']} {t.get('description') or ''}"
+        t_chunks = retrieval_service.search_subject_chunks(
+            db=db,
+            subject_id=subject_id,
+            query=t_query,
+            top_k=4
+        )
+        for c in t_chunks:
+            if c["chunk_id"] not in evidence_by_id:
+                evidence_by_id[c["chunk_id"]] = c
 
+    # Broad query fallback to ensure sufficient context depth
+    if len(evidence_by_id) < 6:
+        topic_query_str = " ".join([t["name"] + " " + (t.get("description") or "") for t in topics_data])
+        broad_chunks = retrieval_service.search_subject_chunks(
+            db=db,
+            subject_id=subject_id,
+            query=topic_query_str,
+            top_k=15
+        )
+        for c in broad_chunks:
+            if c["chunk_id"] not in evidence_by_id:
+                evidence_by_id[c["chunk_id"]] = c
+
+    evidence = list(evidence_by_id.values())[:20]
     source_mode = "reference_grounded" if evidence else "syllabus_scoped"
 
     # 3. Call custom test generator in AI Service

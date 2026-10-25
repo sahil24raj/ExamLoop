@@ -71,18 +71,21 @@ def analyze_subject_syllabus(
             detail="Extracted syllabus text is empty. Please verify the uploaded document has readable text."
         )
 
-    # Sample chunks across multi-page documents (first pages, evenly spaced middle pages, and summary pages)
+    # Sample chunks across multi-page / large documents (first pages, evenly spaced chapter pages, and summary pages)
     total_chunks = len(all_chunks)
-    if total_chunks <= 15:
+    if total_chunks <= 30:
         selected_chunks = all_chunks
     else:
         indices = set()
-        for i in range(min(5, total_chunks)):
+        # First 8 chunks (intro / syllabus / table of contents / chapter overview)
+        for i in range(min(8, total_chunks)):
             indices.add(i)
-        step = max(1, total_chunks // 8)
-        for i in range(step, total_chunks - 3, step):
+        # Evenly sampled across all chapters
+        step = max(1, total_chunks // 25)
+        for i in range(step, total_chunks - 5, step):
             indices.add(i)
-        for i in range(max(0, total_chunks - 3), total_chunks):
+        # Last 5 chunks (summary / review)
+        for i in range(max(0, total_chunks - 5), total_chunks):
             indices.add(i)
         selected_chunks = [all_chunks[i] for i in sorted(indices)]
 
@@ -164,8 +167,8 @@ def analyze_subject_syllabus(
     raw_units = []
     try:
         analysis_result = ai_service.analyze_syllabus_hierarchy(
-            syllabus_text=syllabus_text[:12000],
-            notes_chunks=notes_chunks_data[:10],
+            syllabus_text=syllabus_text[:24000],
+            notes_chunks=notes_chunks_data[:12],
             previous_papers_chunks=paper_chunks_data[:6],
             is_single_chapter=is_single_chapter,
             doc_title=doc_unit_title,
@@ -199,14 +202,14 @@ def analyze_subject_syllabus(
     if len(all_extracted_topics) < 3:
         # Extract headings and significant concepts directly from the document's own text chunks
         discovered_topics = []
-        for c in all_chunks[:35]:
+        for c in selected_chunks:
             lines = c.content.splitlines()
             for line in lines:
                 clean_l = line.strip().strip("•-*#:").strip()
                 if 5 <= len(clean_l) <= 55 and not clean_l.endswith("."):
                     if any(char.isupper() for char in clean_l) and clean_l not in discovered_topics:
                         # Avoid generic page or title headers
-                        if not any(skip in clean_l.lower() for skip in ["page ", "http", "copyright", "author", "lecture"]):
+                        if not any(skip in clean_l.lower() for skip in ["page ", "http", "copyright", "author", "lecture", "slide", "www."]):
                             discovered_topics.append(clean_l)
                             if len(discovered_topics) >= 6:
                                 break

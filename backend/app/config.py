@@ -49,7 +49,7 @@ class Settings(BaseModel):
     default_user_email: str = "student@examloop.local"
     default_user_name: str = "Demo Student"
     
-    max_upload_size_bytes: int = 15 * 1024 * 1024 # 15MB
+    max_upload_size_bytes: int = int(os.getenv("MAX_UPLOAD_SIZE_BYTES", str(100 * 1024 * 1024))) # 100MB default
     allowed_mime_types: list[str] = ["application/pdf", "text/plain"]
 
 settings = Settings()

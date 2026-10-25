@@ -939,9 +939,9 @@ class AIService:
         
         evidence_str = ""
         if retrieved_evidence:
-            evidence_str = "SUPPORTING STUDY EVIDENCE:\n" + "\n\n".join([
+            evidence_str = "SUPPORTING STUDY EVIDENCE (PDF CONTENT):\n" + "\n\n".join([
                 f"[Chunk {e.get('chunk_id')} | Page {e.get('page_number')} | Doc: {e.get('filename')}]\n{e.get('supporting_text', '')}"
-                for e in retrieved_evidence[:10]
+                for e in retrieved_evidence[:20]
             ])
         else:
             evidence_str = (
@@ -952,6 +952,12 @@ class AIService:
 
         system_prompt = (
             "You are an expert university examiner building a custom practice test.\n"
+            "CRITICAL SOURCE-GROUNDING MANDATE:\n"
+            "1. Every single question (MCQ and Subjective), option, reference answer, and rubric MUST BE STRICTLY GROUNDED IN AND DERIVED DIRECTLY FROM THE PROVIDED 'SUPPORTING STUDY EVIDENCE' (PDF excerpts).\n"
+            "2. DO NOT make up generic or unrelated questions. Test the exact definitions, algorithms, technical mechanics, theorems, edge-cases, and examples present in the provided evidence.\n"
+            "3. For each question, accurately populate 'source_page' with the real page number from the excerpt and 'excerpt' with the exact matching text quotation from the evidence.\n"
+            "4. For MCQs: Ensure exactly 1 option is undeniably correct based on the evidence text, with 3 plausible distractors.\n"
+            "5. For Subjective: The reference_answer and expected_key_points must reflect the exact technical explanations from the evidence.\n\n"
             "You must generate EXACTLY the requested question counts and question types:\n"
             f"- Exactly {mcq_count} single-correct MCQs (Options A, B, C, D; one correct; explanation).\n"
             f"- Exactly {very_short_count} very short answer questions ({marks_config.get('very_short', 2)} marks each). 1-2 sentences expected. Rubric with 2 criteria summing to marks.\n"

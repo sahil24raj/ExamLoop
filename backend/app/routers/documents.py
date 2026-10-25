@@ -32,14 +32,7 @@ async def upload_document(
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
-    # Validate file size (max 15MB)
-    MAX_FILE_BYTES = 15 * 1024 * 1024
-    content = await file.read()
-    if len(content) > MAX_FILE_BYTES:
-        raise HTTPException(status_code=400, detail="File size exceeds the 15MB limit. Please upload a smaller PDF or TXT file.")
-    await file.seek(0)
-
-    # Save to isolated filesystem
+    # Save to isolated filesystem with streaming (supports up to 100MB)
     safe_name, abs_path, file_size, mime = await storage_service.save_file(subject_id, file)
 
     doc = Document(
