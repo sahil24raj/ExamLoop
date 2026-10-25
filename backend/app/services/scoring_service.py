@@ -66,6 +66,8 @@ class ScoringService:
         subjective_score = 0.0
         max_possible = sum(q.marks for q in questions.values())
 
+        subjective_tasks = []
+
         for q_id, question in questions.items():
             ans = answers.get(q_id)
             selected_option = ans.selected_option_id if ans else None
@@ -110,7 +112,7 @@ class ScoringService:
                 total_score += awarded
                 objective_score += awarded
             else:
-                # Subjective question
+                # Prepare subjective task for parallel evaluation
                 criteria = [
                     {
                         "criterion_id": c.criterion_id,
@@ -119,8 +121,6 @@ class ScoringService:
                     }
                     for c in question.rubric_criteria
                 ]
-                
-                # If no DB criteria records, construct fallback from question
                 if not criteria:
                     criteria = [{
                         "criterion_id": "crit_overall",
@@ -128,17 +128,34 @@ class ScoringService:
                         "max_marks": float(question.marks)
                     }]
 
-                eval_data = ai_service.grade_subjective_answer(
-                    question_text=question.question_text,
-                    max_marks=float(question.marks),
-                    rubric_criteria=criteria,
-                    reference_answer=question.reference_answer or "",
-                    student_answer=student_text or "",
-                    source_evidence=question.source_references or [],
-                    db=db
-                )
+                subjective_tasks.append({
+                    "question": question,
+                    "student_text": student_text or "",
+                    "criteria": criteria
+                })
 
-                # Recompute and clamp in application code
+        # Evaluate all subjective questions concurrently to eliminate multi-question lag/jitter
+        if subjective_tasks:
+            import concurrent.futures
+
+            def _evaluate_single(task):
+                q = task["question"]
+                eval_data = ai_service.grade_subjective_answer(
+                    question_text=q.question_text,
+                    max_marks=float(q.marks),
+                    rubric_criteria=task["criteria"],
+                    reference_answer=q.reference_answer or "",
+                    student_answer=task["student_text"],
+                    source_evidence=q.source_references or [],
+                    db=None
+                )
+                return q, eval_data
+
+            max_workers = min(4, len(subjective_tasks))
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                graded_results = list(executor.map(_evaluate_single, subjective_tasks))
+
+            for question, eval_data in graded_results:
                 recomputed_awarded = min(
                     float(question.marks),
                     max(0.0, sum(float(c.get("awarded_marks", 0.0)) for c in eval_data.get("criterion_results", [])))

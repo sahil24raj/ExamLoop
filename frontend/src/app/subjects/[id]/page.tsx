@@ -183,26 +183,34 @@ function SubjectWorkspaceContent() {
       const docs = await api.listDocuments(subjectId);
       setDocuments(docs);
 
-      // Refresh units immediately in case auto-extraction completed
-      try {
-        const freshUnits = await api.listUnits(subjectId);
-        if (freshUnits && freshUnits.length > 0) {
-          setUnits(freshUnits);
-          const allIds = new Set<string>();
-          freshUnits.forEach(unit => {
-            unit.topics.forEach(t => {
-              if (!t.is_excluded) allIds.add(t.id);
+      // Refresh units immediately with quick progressive retry if auto-extraction finishes
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const freshUnits = await api.listUnits(subjectId);
+          if (freshUnits && freshUnits.length > 0) {
+            setUnits(freshUnits);
+            const allIds = new Set<string>();
+            freshUnits.forEach(unit => {
+              unit.topics.forEach(t => {
+                if (!t.is_excluded) allIds.add(t.id);
+              });
             });
-          });
-          setSelectedTopicIds(allIds);
+            setSelectedTopicIds(allIds);
+            break;
+          }
+        } catch {
+          // ignore transient poll error
         }
-      } catch {
-        // units will be polled by background effect
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 1200));
+        }
       }
     } catch (err: any) {
       setError(err.message || "Failed to upload document");
     } finally {
       setUploading(false);
+      // Reset input value so the same file can be re-uploaded if needed
+      e.target.value = "";
     }
   };
 
@@ -471,9 +479,17 @@ function SubjectWorkspaceContent() {
               />
             </label>
             {uploading && (
-              <div className="flex items-center justify-center gap-2 text-xs text-[#24EACE]">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#24EACE]" />
-                Extracting document content...
+              <div className="p-3.5 rounded-xl bg-[#142019] border border-[#24EACE]/40 space-y-2 animate-pulse">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#24EACE]">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#24EACE]" />
+                  <span>Processing & Extracting Topics...</span>
+                </div>
+                <p className="text-[11px] text-[#D0DBD4] leading-relaxed">
+                  Streaming document, parsing content pages, and discovering syllabus topics.
+                </p>
+                <div className="w-full bg-[#0D1410] rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-linear-to-r from-[#24EACE] to-[#A3FF70] h-1.5 rounded-full w-4/5 animate-pulse" />
+                </div>
               </div>
             )}
           </div>

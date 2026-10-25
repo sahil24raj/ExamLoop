@@ -193,7 +193,7 @@ class AIService:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
-                    timeout=40.0
+                    timeout=22.0
                 )
                 duration_ms = int((time.time() - start_time) * 1000)
                 prompt_tokens = response.usage.prompt_tokens if response.usage else 0

@@ -178,8 +178,8 @@ export default function TestBuilderModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-3xl my-8 rounded-3xl bg-[#0D1410] border border-[#26382D] shadow-2xl overflow-hidden flex flex-col text-[#F9F9F9]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+      <div className="relative w-full max-w-3xl my-8 rounded-3xl bg-[#0D1410] border border-[#26382D] shadow-2xl overflow-hidden flex flex-col text-[#F9F9F9] animate-in zoom-in-95 duration-200">
         {/* Modal Header */}
         <div className="p-6 border-b border-[#26382D] flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -199,20 +199,71 @@ export default function TestBuilderModal({
             type="button"
             onClick={onClose}
             disabled={generating}
-            className="p-2 rounded-xl text-[#A7B8AE] hover:text-[#F9F9F9] hover:bg-[#142019] transition disabled:opacity-30"
+            className="p-2 rounded-xl text-[#A7B8AE] hover:text-[#F9F9F9] hover:bg-[#142019] transition disabled:opacity-30 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 flex-1 overflow-y-auto max-h-[70vh]">
-          {/* Quick Preset Buttons */}
-          <div className="space-y-2">
-            <span className="text-xs font-semibold text-[#A7B8AE] flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-[#24EACE]" />
-              Quick Presets:
-            </span>
+        {generating ? (
+          /* Focused, animated synthesis stage view when generating */
+          <div className="p-10 text-center space-y-6 relative overflow-hidden">
+            <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-64 bg-[#24EACE]/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="w-16 h-16 rounded-2xl bg-[#142019] border border-[#24EACE]/40 flex items-center justify-center mx-auto text-[#24EACE] shadow-lg shadow-[#24EACE]/10">
+              <Sparkles className="w-8 h-8 animate-pulse text-[#24EACE]" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-xl font-bold text-[#F9F9F9] tracking-tight">Synthesizing Examination Engine</h3>
+              <p className="text-xs text-[#A7B8AE]">
+                Formulating questions grounded strictly in your study material with rubric criteria
+              </p>
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-full max-w-md mx-auto bg-[#142019] rounded-full h-2 overflow-hidden border border-[#26382D]">
+              <div
+                className="bg-linear-to-r from-[#24EACE] to-[#A3FF70] h-2 rounded-full transition-all duration-700"
+                style={{ width: `${((genStep + 1) / steps.length) * 100}%` }}
+              />
+            </div>
+
+            {/* Stepped checklist */}
+            <div className="w-full max-w-md mx-auto bg-[#142019]/80 rounded-2xl p-5 border border-[#26382D] space-y-3 text-left">
+              {steps.map((stepText, idx) => {
+                const isDone = idx < genStep;
+                const isCurrent = idx === genStep;
+                return (
+                  <div key={idx} className="flex items-center gap-3 text-xs">
+                    {isDone ? (
+                      <CheckCircle2 className="w-4 h-4 text-[#A3FF70] shrink-0" />
+                    ) : isCurrent ? (
+                      <Loader2 className="w-4 h-4 text-[#24EACE] animate-spin shrink-0" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border border-[#26382D] bg-[#0D1410] shrink-0" />
+                    )}
+                    <span className={isDone ? "text-[#A3FF70] font-medium" : isCurrent ? "text-[#F9F9F9] font-bold" : "text-[#A7B8AE]/60"}>
+                      {stepText}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-[11px] text-[#A7B8AE] italic">
+              Launching your test engine workspace automatically in just a moment...
+            </p>
+          </div>
+        ) : (
+          /* Form Body */
+          <form onSubmit={handleSubmit} className="p-6 space-y-6 flex-1 overflow-y-auto max-h-[70vh]">
+            {/* Quick Preset Buttons */}
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-[#A7B8AE] flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-[#24EACE]" />
+                Quick Presets:
+              </span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
@@ -583,23 +634,6 @@ export default function TestBuilderModal({
             </div>
           </div>
 
-          {/* Animated Generation Stage Banner when generating */}
-          {generating && (
-            <div className="p-4 rounded-2xl bg-[#142019] border border-[#24EACE]/40 space-y-3 animate-pulse">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#24EACE]">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Generating Test Engine ({genStep + 1} of {steps.length})</span>
-              </div>
-              <p className="text-xs text-[#F9F9F9] font-medium">{steps[genStep]}</p>
-              <div className="w-full bg-[#0D1410] rounded-full h-1.5 overflow-hidden">
-                <div
-                  className="bg-linear-to-r from-[#24EACE] to-[#A3FF70] h-1.5 rounded-full transition-all duration-500"
-                  style={{ width: `${((genStep + 1) / steps.length) * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
-
           {!isValid && (
             <div className="p-3 rounded-xl bg-[#281F0D] border border-[#523F17] text-xs text-amber-300 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -613,7 +647,7 @@ export default function TestBuilderModal({
               type="button"
               onClick={onClose}
               disabled={generating}
-              className="px-4 py-2 text-xs font-semibold text-[#A7B8AE] hover:text-[#F9F9F9] transition disabled:opacity-40"
+              className="px-4 py-2 text-xs font-semibold text-[#A7B8AE] hover:text-[#F9F9F9] transition disabled:opacity-40 cursor-pointer"
             >
               Cancel
             </button>
@@ -622,20 +656,12 @@ export default function TestBuilderModal({
               disabled={!isValid || generating}
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] font-bold text-xs shadow-md shadow-[#24EACE]/20 transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
-              {generating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-[#060807]" />
-                  <span>Synthesizing Test...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 text-[#060807]" />
-                  <span>Generate Practice Test</span>
-                </>
-              )}
+              <Sparkles className="w-4 h-4 text-[#060807]" />
+              <span>Generate Practice Test</span>
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

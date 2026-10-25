@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Clock,
   CheckCircle,
+  CheckCircle2,
   AlertCircle,
   Bookmark,
   ChevronLeft,
@@ -114,7 +115,7 @@ const SubjectiveAnswerBox = React.memo(function SubjectiveAnswerBox({
   useEffect(() => {
     setText(initialText || "");
     textRef.current = initialText || "";
-  }, [questionId, initialText]);
+  }, [questionId]);
 
   const handleChange = (val: string) => {
     setText(val);
@@ -168,10 +169,29 @@ function TestTakingContent() {
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState<"saved" | "saving" | "idle">("saved");
   const [submitting, setSubmitting] = useState(false);
+  const [submitStage, setSubmitStage] = useState(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const submitStages = [
+    "Synchronizing final responses & validating exam state...",
+    "Grading objective MCQs & parallel rubric evaluation...",
+    "Synthesizing actionable feedback & calculating /10 score...",
+    "Finalizing diagnostic report & directing to results..."
+  ];
+
+  useEffect(() => {
+    if (!submitting) {
+      setSubmitStage(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setSubmitStage((prev) => (prev < submitStages.length - 1 ? prev + 1 : prev));
+    }, 2800);
+    return () => clearInterval(interval);
+  }, [submitting, submitStages.length]);
 
   // Time spent accumulator tracked without triggering whole-page re-renders
   const timeSpentRef = useRef(0);
@@ -258,6 +278,7 @@ function TestTakingContent() {
   const handleSubmit = async () => {
     if (!testData?.attempt_id) return;
     setSubmitting(true);
+    setShowSubmitModal(false);
     setSubmitError(null);
     try {
       const payloadAnswers = Object.entries(answers).map(([qId, val]) => ({
@@ -276,6 +297,7 @@ function TestTakingContent() {
     } catch (err: any) {
       setSubmitError(err.message || "Failed to submit test. Please check connection and try again.");
       setSubmitting(false);
+      setShowSubmitModal(true);
     }
   };
 
@@ -618,7 +640,7 @@ function TestTakingContent() {
       </div>
 
       {/* Confirmation Submit Modal */}
-      {showSubmitModal && (
+      {showSubmitModal && !submitting && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#0D1410] rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-[#26382D]">
             <h3 className="text-lg font-bold text-[#F9F9F9]">Confirm Test Submission</h3>
@@ -661,20 +683,74 @@ function TestTakingContent() {
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={() => setShowSubmitModal(false)}
-                disabled={submitting}
                 className="px-4 py-2 text-xs font-semibold text-[#A7B8AE] hover:text-[#F9F9F9] cursor-pointer"
               >
                 Keep Practicing
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={submitting}
-                className="px-5 py-2.5 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] text-xs font-bold shadow-md shadow-[#24EACE]/20 transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                className="px-5 py-2.5 rounded-xl bg-[#24EACE] hover:bg-[#A3FF70] text-[#060807] text-xs font-bold shadow-md shadow-[#24EACE]/20 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
-                {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                {submitting ? "Evaluating Rubrics..." : "Confirm & Submit"}
+                <Send className="w-3.5 h-3.5" />
+                <span>Confirm & Submit</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-Screen Evaluation Progress Overlay */}
+      {submitting && (
+        <div className="fixed inset-0 z-50 bg-[#060807]/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0D1410] rounded-3xl max-w-lg w-full p-8 space-y-6 shadow-2xl border border-[#26382D] text-center relative overflow-hidden">
+            {/* Top ambient glow */}
+            <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-72 bg-[#24EACE]/10 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Glowing Icon */}
+            <div className="relative mx-auto w-16 h-16 rounded-2xl bg-[#142019] border border-[#24EACE]/40 flex items-center justify-center text-[#24EACE] shadow-lg shadow-[#24EACE]/10">
+              <Sparkles className="w-8 h-8 animate-pulse text-[#24EACE]" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-xl font-black text-[#F9F9F9] tracking-tight">AI Evaluation In Progress</h3>
+              <p className="text-xs text-[#A7B8AE]">
+                Scoring responses against verified syllabus rubrics without delay
+              </p>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full bg-[#142019] rounded-full h-2 overflow-hidden border border-[#26382D]">
+              <div
+                className="bg-linear-to-r from-[#24EACE] to-[#A3FF70] h-2 rounded-full transition-all duration-700"
+                style={{ width: `${((submitStage + 1) / submitStages.length) * 100}%` }}
+              />
+            </div>
+
+            {/* Stepped checklist */}
+            <div className="space-y-2.5 text-left bg-[#142019]/70 rounded-2xl p-4 border border-[#26382D]">
+              {submitStages.map((stg, i) => {
+                const isDone = i < submitStage;
+                const isCurrent = i === submitStage;
+                return (
+                  <div key={i} className="flex items-center gap-3 text-xs">
+                    {isDone ? (
+                      <CheckCircle2 className="w-4 h-4 text-[#A3FF70] shrink-0" />
+                    ) : isCurrent ? (
+                      <Loader2 className="w-4 h-4 text-[#24EACE] animate-spin shrink-0" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border border-[#26382D] bg-[#0D1410] shrink-0" />
+                    )}
+                    <span className={isDone ? "text-[#A3FF70] font-medium" : isCurrent ? "text-[#F9F9F9] font-bold" : "text-[#A7B8AE]/60"}>
+                      {stg}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-[11px] text-[#A7B8AE] italic">
+              Please do not refresh or close this tab. You will be redirected automatically once evaluation completes.
+            </p>
           </div>
         </div>
       )}
