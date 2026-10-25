@@ -265,7 +265,7 @@ async function getHydratedAuthToken(): Promise<string | null> {
 }
 
 // API methods
-export async function apiFetch<T>(endpoint: string, options?: RequestInit, isRetry = false): Promise<T> {
+export async function apiFetch<T>(endpoint: string, options?: RequestInit, retryCount = 0): Promise<T> {
   let res: Response;
   const token = await getHydratedAuthToken();
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
@@ -280,20 +280,31 @@ export async function apiFetch<T>(endpoint: string, options?: RequestInit, isRet
       },
     });
   } catch (netErr: any) {
+    // Transparently retry transient network errors (e.g. Render spin-up or deploy restart)
+    if (retryCount < 2 && typeof window !== "undefined") {
+      await new Promise((r) => setTimeout(r, 2500));
+      return apiFetch<T>(endpoint, options, retryCount + 1);
+    }
     if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
       throw new Error(
-        `Backend server unreachable or waking up at ${API_BASE || 'default'}. Render free instances take ~30-45 seconds to spin up from cold sleep. Please wait a moment and try again.`
+        `Backend server waking up or reconnecting at ${API_BASE}. Please wait 10-15 seconds and try again.`
       );
     }
     throw new Error(`Cannot connect to Backend at ${API_BASE}. Make sure FastAPI is running (python -m uvicorn backend.app.main:app --port 8000).`);
   }
 
+  // Automatic retry on transient 502/503/504 cold-start gateway statuses
+  if ((res.status === 502 || res.status === 503 || res.status === 504) && retryCount < 2 && typeof window !== "undefined") {
+    await new Promise((r) => setTimeout(r, 2500));
+    return apiFetch<T>(endpoint, options, retryCount + 1);
+  }
+
   // Automatic retry if unauthenticated race occurred on initial cold component load
-  if ((res.status === 401 || res.status === 404) && !token && !isRetry && typeof window !== "undefined") {
+  if ((res.status === 401 || res.status === 404) && !token && retryCount === 0 && typeof window !== "undefined") {
     await new Promise((r) => setTimeout(r, 300));
     const refreshedToken = await getSupabaseAccessToken();
     if (refreshedToken) {
-      return apiFetch<T>(endpoint, options, true);
+      return apiFetch<T>(endpoint, options, 1);
     }
   }
 
