@@ -98,12 +98,12 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
             {/* Tier 1 */}
             <div className="p-4 rounded-xl border border-[#1C4D34] bg-[#0D2418]/60 space-y-2 text-xs">
-              <span className="font-bold text-[#A3FF70] block">1st Priority: Free NVIDIA</span>
+              <span className="font-bold text-[#A3FF70] block">1st Priority: NVIDIA Ultra 550B</span>
               <div className="font-mono text-[11px] text-[#A3FF70] bg-[#060807] p-2 rounded-lg border border-[#1C4D34]">
-                nvidia/nemotron-3.5-lightning:free
+                nvidia/nemotron-3-ultra-550b-a55b:free
               </div>
               <p className="text-[11px] text-[#D0DBD4]">
-                Benchmark latency: <strong className="text-[#F9F9F9]">3.38s</strong>. Complete valid JSON with strict rubric criteria. Zero token cost.
+                550B parameter powerhouse. Tested across extraction, generation & rubric grading with <strong className="text-[#F9F9F9]">100% valid JSON</strong> adherence. Zero cost.
               </p>
             </div>
 
@@ -111,21 +111,21 @@ export default function SettingsPage() {
             <div className="p-4 rounded-xl border border-[#26382D] bg-[#142019] space-y-2 text-xs">
               <span className="font-bold text-[#24EACE] block">2nd Priority: NVIDIA Lightning</span>
               <div className="font-mono text-[11px] text-[#24EACE] bg-[#060807] p-2 rounded-lg border border-[#26382D]">
-                nvidia/nemotron-3.5-lightning
+                nvidia/nemotron-3.5-lightning:free
               </div>
               <p className="text-[11px] text-[#D0DBD4]">
-                Benchmark latency: <strong className="text-[#F9F9F9]">1.67s</strong>. Ultra-fast high-precision examination generation and grading.
+                Fast secondary free tier fallback for quick subjective evaluation and question generation.
               </p>
             </div>
 
             {/* Tier 3 */}
             <div className="p-4 rounded-xl border border-[#26382D] bg-[#0D1410] space-y-2 text-xs">
-              <span className="font-bold text-[#F9F9F9] block">3rd Priority: Qwen Fallback</span>
+              <span className="font-bold text-[#F9F9F9] block">3rd Priority: Cohere Fallback</span>
               <div className="font-mono text-[11px] text-[#A7B8AE] bg-[#060807] p-2 rounded-lg border border-[#26382D]">
-                qwen/qwen-2.5-72b-instruct
+                cohere/north-mini-code:free
               </div>
               <p className="text-[11px] text-[#A7B8AE]">
-                Benchmark latency: <strong className="text-[#F9F9F9]">4.65s</strong>. Resilient fallback in case of upstream rate limits.
+                Benchmark latency: <strong className="text-[#F9F9F9]">14.5s</strong>. Resilient free backup in case of upstream provider load.
               </p>
             </div>
           </div>

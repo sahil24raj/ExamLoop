@@ -25,11 +25,11 @@ class Settings(BaseModel):
     openrouter_base_url: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     
     # Model hierarchy:
-    # 1st Priority: NVIDIA Nemotron 3.5 Lightning (Free tier verified 100% JSON)
-    # Fallbacks: Minimax / Google Gemma free models
-    openrouter_fast_model: str = os.getenv("OPENROUTER_FAST_MODEL", "nvidia/nemotron-3.5-lightning:free")
-    openrouter_reasoning_model: str = os.getenv("OPENROUTER_REASONING_MODEL", "nvidia/nemotron-3.5-lightning:free")
-    openrouter_fallback_model: str = os.getenv("OPENROUTER_FALLBACK_MODEL", "minimax/minimax-m3.1-flash:free")
+    # 1st Priority: NVIDIA Nemotron 3 Ultra 550B (Best-in-class free tier MoE model)
+    # Fallback: NVIDIA Nemotron 3.5 Lightning (Fast free tier model)
+    openrouter_fast_model: str = os.getenv("OPENROUTER_FAST_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free")
+    openrouter_reasoning_model: str = os.getenv("OPENROUTER_REASONING_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free")
+    openrouter_fallback_model: str = os.getenv("OPENROUTER_FALLBACK_MODEL", "nvidia/nemotron-3.5-lightning:free")
 
     # Embeddings / Retrieval
     embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "lexical")

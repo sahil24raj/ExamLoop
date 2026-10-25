@@ -1,0 +1,61 @@
+{
+  "nvidia/nemotron-3-ultra-550b-a55b:free": {
+    "extraction": {
+      "status": "PASS",
+      "latency": 16.68,
+      "count": 3,
+      "sample": [
+        "ACID Properties",
+        "Isolation Levels and Concurrency Anomalies",
+        "Transaction Management and Recovery"
+      ]
+    },
+    "generation": {
+      "status": "PASS",
+      "latency": 25.64,
+      "mcq_q": "Which isolation level prevents Dirty Reads and Non-Repeatabl",
+      "subj_q": "Explain the ACID properties of a transaction. For the Isolat"
+    },
+    "grading": {
+      "status": "PASS",
+      "latency": 14.22,
+      "score": 5.0,
+      "feedback": "The answer accurately defines phantom reads and correctly explains why Repeatabl"
+    }
+  },
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+    "extraction": {
+      "status": "ERROR",
+      "latency": 1.24,
+      "error": "'choices'"
+    },
+    "generation": {
+      "status": "ERROR",
+      "latency": 1.04,
+      "error": "'choices'"
+    },
+    "grading": {
+      "status": "ERROR",
+      "latency": 1.08,
+      "error": "'choices'"
+    }
+  },
+  "nvidia/nemotron-3.5-lightning:free": {
+    "extraction": {
+      "status": "ERROR",
+      "latency": 14.43,
+      "error": "Extra data: line 1 column 75 (char 74)"
+    },
+    "generation": {
+      "status": "ERROR",
+      "latency": 20.84,
+      "error": "Extra data: line 1 column 63 (char 62)"
+    },
+    "grading": {
+      "status": "PASS",
+      "latency": 12.63,
+      "score": 5.0,
+      "feedback": "..."
+    }
+  }
+}

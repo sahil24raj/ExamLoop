@@ -44,6 +44,12 @@ devpost/learner-profile.md
 # Vercel & IDE
 .vercel
 .agents/
+.claude/
+agent/
+skills-lock.json
+backend/probe_free_models.py
+backend/test_cohere_free.py
+backend/test_response_structure.py
 .vscode/
 .idea/
 .DS_Store
@@ -55,3 +61,4 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+

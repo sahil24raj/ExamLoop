@@ -105,6 +105,15 @@ class AIService:
         except Exception:
             pass
 
+        # Attempt 1b: decode first complete JSON structure if extra conversational text exists
+        first_b = min([i for i in [cleaned.find('{'), cleaned.find('[')] if i != -1], default=-1)
+        if first_b != -1:
+            try:
+                obj, _ = json.JSONDecoder(strict=False).raw_decode(cleaned[first_b:])
+                return obj
+            except Exception:
+                pass
+
         # Attempt 2: remove trailing commas before closing braces/brackets
         sanitized = re.sub(r',\s*([\]\}])', r'\1', cleaned)
         try:
@@ -143,12 +152,10 @@ class AIService:
         candidate_models = [
             primary_model or settings.openrouter_fast_model,
             settings.openrouter_fast_model,
+            "nvidia/nemotron-3-ultra-550b-a55b:free",
             "nvidia/nemotron-3.5-lightning:free",
-            "minimax/minimax-m3.1-flash:free",
-            "liquid/lfm-2.5-2.6b:free",
-            "google/gemma-4-26b-a4b-it:free",
+            "cohere/north-mini-code:free",
             settings.openrouter_fallback_model,
-            "meta-llama/llama-3.3-70b-instruct"
         ]
         # Deduplicate while preserving priority order
         unique_models = []
@@ -165,7 +172,7 @@ class AIService:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
-                    timeout=15.0
+                    timeout=40.0
                 )
                 duration_ms = int((time.time() - start_time) * 1000)
                 prompt_tokens = response.usage.prompt_tokens if response.usage else 0
