@@ -47,7 +47,7 @@ def root():
         "app": settings.app_name,
         "docs": "/docs",
         "health": "/api/health",
-        "version": "1.0.1-eval-fixed"
+        "version": "1.0.2-fk-fixed"
     }
 
 @app.get("/api/health")
@@ -57,5 +57,5 @@ def health_check():
         "app": settings.app_name,
         "env": settings.app_env,
         "demo_mode": settings.demo_mode,
-        "version": "1.0.1-eval-fixed"
+        "version": "1.0.2-fk-fixed"
     }
