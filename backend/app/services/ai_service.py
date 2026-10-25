@@ -543,30 +543,41 @@ class AIService:
             "}\n"
             "Return ONLY the JSON object."
         )
-        rubric_str = json.dumps(rubric_criteria, indent=2)
-        user_prompt = (
-            f"QUESTION:\n{question_text}\n(Max Marks: {max_marks})\n\n"
-            f"RUBRIC CRITERIA:\n{rubric_str}\n\n"
-            f"REFERENCE ANSWER:\n{reference_answer}\n\n"
-            f"STUDENT ANSWER:\n{student_answer}\n\n"
-            f"VERIFIED EVIDENCE:\n" + "\n".join([e.get("supporting_text", "") for e in source_evidence[:3]])
-        )
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-
         try:
+            evidence_lines = []
+            for e in (source_evidence or [])[:3]:
+                if isinstance(e, dict):
+                    text = e.get("supporting_text") or e.get("excerpt") or str(e)
+                    evidence_lines.append(str(text))
+                elif isinstance(e, str):
+                    evidence_lines.append(e)
+                else:
+                    evidence_lines.append(str(e))
+            evidence_block = "\n".join(evidence_lines)
+
+            rubric_str = json.dumps(rubric_criteria, indent=2)
+            user_prompt = (
+                f"QUESTION:\n{question_text}\n(Max Marks: {max_marks})\n\n"
+                f"RUBRIC CRITERIA:\n{rubric_str}\n\n"
+                f"REFERENCE ANSWER:\n{reference_answer}\n\n"
+                f"STUDENT ANSWER:\n{student_answer}\n\n"
+                f"VERIFIED EVIDENCE:\n{evidence_block}"
+            )
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+
             raw = self._call_chat_with_fallback(
                 db, "grade_subjective_answer", messages,
                 primary_model=settings.openrouter_reasoning_model,
                 max_tokens=1500
             )
             data = self._parse_json_safely(raw)
-            awarded = sum(float(c.get("awarded_marks", 0.0)) for c in data.get("criterion_results", []))
+            awarded = sum(float(c.get("awarded_marks", 0.0) or 0.0) for c in data.get("criterion_results", []))
             data["awarded_marks"] = min(float(max_marks), max(0.0, round(awarded, 2)))
             data["max_marks"] = float(max_marks)
-            data["source_references"] = source_evidence[:2]
+            data["source_references"] = source_evidence[:2] if source_evidence else []
             return data
         except Exception as err:
             # Degrade gracefully: a failed or malformed LLM response must not crash the exam submission.

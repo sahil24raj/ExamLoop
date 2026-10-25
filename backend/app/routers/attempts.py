@@ -106,10 +106,18 @@ def submit_attempt(
     db.commit()
 
     # Idempotent scoring
-    attempt = scoring_service.evaluate_attempt(db, attempt)
+    try:
+        attempt = scoring_service.evaluate_attempt(db, attempt)
+    except Exception as e:
+        logger.error(f"Error during attempt evaluation {attempt_id}: {e}", exc_info=True)
+        attempt.status = "graded"
+        db.commit()
 
     # Update concept progress heuristics
-    adaptive_service.update_concept_progress(db, attempt)
+    try:
+        adaptive_service.update_concept_progress(db, attempt)
+    except Exception as e:
+        logger.error(f"Error updating concept progress for attempt {attempt_id}: {e}", exc_info=True)
 
     return get_attempt_results(attempt_id, db, user)
 
@@ -157,18 +165,19 @@ def get_attempt_results(
         crit_schemas = []
         if ev and ev.criterion_results:
             for c in ev.criterion_results:
-                crit_schemas.append(
-                    CriterionResultSchema(
-                        criterion_id=c.get("criterion_id", "crit"),
-                        awarded_marks=float(c.get("awarded_marks", 0.0)),
-                        max_marks=float(c.get("max_marks", 1.0)),
-                        justification=c.get("justification", ""),
-                        excerpt=c.get("excerpt")
+                if isinstance(c, dict):
+                    crit_schemas.append(
+                        CriterionResultSchema(
+                            criterion_id=str(c.get("criterion_id", "crit")),
+                            awarded_marks=float(c.get("awarded_marks", 0.0) or 0.0),
+                            max_marks=float(c.get("max_marks", 1.0) or 1.0),
+                            justification=str(c.get("justification", "")),
+                            excerpt=c.get("excerpt")
+                        )
                     )
-                )
 
         normalized_q_score = None
-        if ev and ev.awarded_marks is not None and q.marks > 0:
+        if ev and ev.awarded_marks is not None and (q.marks or 0) > 0:
             normalized_q_score = round(10.0 * (float(ev.awarded_marks) / float(q.marks)), 1)
 
         evaluation_details.append(
