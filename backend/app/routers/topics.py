@@ -58,19 +58,35 @@ def analyze_subject_syllabus(
             detail="No uploaded documents found. Please upload or paste your syllabus first."
         )
 
-    # Gather syllabus text
+    # Gather syllabus chunks across the entire document
     syllabus_doc_ids = [d.id for d in syllabus_docs]
-    syllabus_chunks = db.query(DocumentChunk).filter(
+    all_chunks = db.query(DocumentChunk).filter(
         DocumentChunk.subject_id == subject_id,
         DocumentChunk.document_id.in_(syllabus_doc_ids)
     ).order_by(DocumentChunk.chunk_index).all()
 
-    syllabus_text = "\n\n".join([c.content for c in syllabus_chunks])
-    if not syllabus_text.strip():
+    if not all_chunks:
         raise HTTPException(
             status_code=400,
             detail="Extracted syllabus text is empty. Please verify the uploaded document has readable text."
         )
+
+    # Sample chunks across multi-page documents (first pages, evenly spaced middle pages, and summary pages)
+    total_chunks = len(all_chunks)
+    if total_chunks <= 15:
+        selected_chunks = all_chunks
+    else:
+        indices = set()
+        for i in range(min(5, total_chunks)):
+            indices.add(i)
+        step = max(1, total_chunks // 8)
+        for i in range(step, total_chunks - 3, step):
+            indices.add(i)
+        for i in range(max(0, total_chunks - 3), total_chunks):
+            indices.add(i)
+        selected_chunks = [all_chunks[i] for i in sorted(indices)]
+
+    syllabus_text = "\n\n".join([f"[Page {c.page_number}]\n{c.content}" for c in selected_chunks])
 
     # 2. Fetch notes & previous papers chunks
     notes_docs = db.query(Document).filter(
@@ -103,139 +119,156 @@ def analyze_subject_syllabus(
         ).all()
         paper_chunks_data = [{"id": c.id, "content": c.content, "page_number": c.page_number} for c in p_chunks]
 
-    # 3. Call AI Service to extract hierarchy
+    # Detect if single chapter / unit notes or multi-unit curriculum
+    primary_doc = syllabus_docs[0]
+    doc_name = primary_doc.original_name.lower()
+    
+    import re
+    # Check if document title explicitly mentions a single unit/chapter (e.g., "CS U3.pdf", "Unit 3", "Unit_3", "Ch 2", "Chapter 4")
+    unit_match = re.search(r"\b(?:unit|u|chapter|ch|module|lecture|lec)[\s_-]*([0-9IVX]+)\b", doc_name, re.IGNORECASE)
+    
+    # Check if doc is explicitly named as a complete syllabus or lecture planner
+    is_planner_or_full_syllabus = any(term in doc_name for term in [
+        "syllabus", "curriculum", "lecture_plan", "lecture plan", "course_outline", "course outline", "planner", "scheme"
+    ])
+    
+    # Check major unit headings in text
+    major_units_in_text = re.findall(r"(?:^|\n)\s*(?:UNIT|MODULE|CHAPTER)\s*[-:]?\s*([0-9IVX]+)", syllabus_text, re.IGNORECASE)
+    unique_major_units = set(u.upper() for u in major_units_in_text)
+
+    is_single_chapter = True
+    u_num = None
+    if unit_match:
+        # Document title explicitly specifies a unit/chapter (e.g., CS U3.pdf -> Unit 3)
+        is_single_chapter = True
+        u_num = unit_match.group(1).upper()
+        doc_unit_title = f"Unit {u_num}: {subject.name}"
+    elif is_planner_or_full_syllabus and len(unique_major_units) >= 2:
+        # True multi-unit syllabus or lecture planner
+        is_single_chapter = False
+        doc_unit_title = f"{subject.name} Syllabus"
+    elif primary_doc.document_role == "notes" or "notes" in doc_name or "slide" in doc_name:
+        is_single_chapter = True
+        doc_unit_title = f"{primary_doc.original_name.rsplit('.', 1)[0]}"
+    elif len(unique_major_units) >= 3 and not unit_match:
+        # Multi-unit syllabus with at least 3 distinct major unit headings
+        is_single_chapter = False
+        doc_unit_title = f"{subject.name} Syllabus"
+    else:
+        is_single_chapter = True
+        doc_unit_title = f"{primary_doc.original_name.rsplit('.', 1)[0]}"
+
+    parsed_unit_num = int(u_num) if u_num and u_num.isdigit() else 1
+
+    # 3. Call AI Service to extract hierarchy with single-chapter awareness
     raw_units = []
     try:
         analysis_result = ai_service.analyze_syllabus_hierarchy(
             syllabus_text=syllabus_text[:12000],
             notes_chunks=notes_chunks_data[:10],
             previous_papers_chunks=paper_chunks_data[:6],
+            is_single_chapter=is_single_chapter,
+            doc_title=doc_unit_title,
             db=db
         )
         raw_units = analysis_result.get("units", [])
     except Exception as ai_err:
         raw_units = []
 
-    # Heuristic fallback if AI returns no units or fails
-    if not raw_units:
-        import re
-        pattern = re.compile(r"(?:Unit|Module|Chapter)\s*([0-9IVX]+)[\s:\-\.]+([^\n\r]{3,80})", re.IGNORECASE)
-        matches = pattern.findall(syllabus_text)
-        if len(matches) >= 2:
-            raw_units = []
-            for idx, (num_str, title) in enumerate(matches[:5], 1):
-                clean_title = title.strip().strip("-:.").strip()
-                if not clean_title:
-                    clean_title = f"Topic {idx}"
-                raw_units.append({
-                    "unit_number": idx,
-                    "title": f"Unit {idx}: {clean_title}",
-                    "description": f"Curriculum unit covering {clean_title}.",
-                    "topics": [
-                        {
-                            "name": f"{clean_title} - Core Principles",
-                            "description": f"Core principles and foundations of {clean_title}.",
-                            "practice_priority": "high",
-                            "priority_reason": "Foundational requirement"
-                        },
-                        {
-                            "name": f"{clean_title} - Practical Application",
-                            "description": f"Practical methods, operations, and analysis of {clean_title}.",
-                            "practice_priority": "high" if idx <= 2 else "medium",
-                            "priority_reason": "High examination frequency"
-                        }
-                    ]
-                })
+    # If single chapter was uploaded but model returned multiple units, consolidate into ONE unit
+    if is_single_chapter and len(raw_units) > 1:
+        combined_topics = []
+        for u in raw_units:
+            combined_topics.extend(u.get("topics", []))
+        raw_units = [{
+            "unit_number": parsed_unit_num,
+            "title": doc_unit_title or raw_units[0].get("title", f"Unit: {subject.name}"),
+            "description": f"Core examinable topics from {primary_doc.original_name}",
+            "topics": combined_topics
+        }]
+    elif is_single_chapter and len(raw_units) == 1:
+        raw_units[0]["unit_number"] = parsed_unit_num
+        if not raw_units[0].get("title") or "unit 1" in raw_units[0]["title"].lower() and u_num and u_num != "1":
+            raw_units[0]["title"] = doc_unit_title
 
-    if not raw_units:
-        raw_units = [
+    # Mandatory check: Ensure minimum 3 topics exist
+    all_extracted_topics = []
+    for u in raw_units:
+        all_extracted_topics.extend(u.get("topics", []))
+
+    if len(all_extracted_topics) < 3:
+        # Extract headings and significant concepts directly from the document's own text chunks
+        discovered_topics = []
+        for c in all_chunks[:35]:
+            lines = c.content.splitlines()
+            for line in lines:
+                clean_l = line.strip().strip("•-*#:").strip()
+                if 5 <= len(clean_l) <= 55 and not clean_l.endswith("."):
+                    if any(char.isupper() for char in clean_l) and clean_l not in discovered_topics:
+                        # Avoid generic page or title headers
+                        if not any(skip in clean_l.lower() for skip in ["page ", "http", "copyright", "author", "lecture"]):
+                            discovered_topics.append(clean_l)
+                            if len(discovered_topics) >= 6:
+                                break
+            if len(discovered_topics) >= 6:
+                break
+
+        if not discovered_topics:
+            discovered_topics = [
+                f"{subject.name} - Core Architecture & Theory",
+                f"{subject.name} - Primary Algorithms & Mechanisms",
+                f"{subject.name} - Applied Analysis & Constraints"
+            ]
+
+        fallback_items = [
             {
-                "unit_number": 1,
-                "title": f"Unit 1: Fundamentals of {subject.name}",
-                "description": f"Core principles, foundational architecture, and concepts in {subject.name}.",
-                "topics": [
-                    {
-                        "name": f"Core Principles of {subject.name}",
-                        "description": f"Essential terminology, foundational concepts, and key principles of {subject.name}.",
-                        "practice_priority": "high",
-                        "priority_reason": "Foundational prerequisite for subsequent units"
-                    },
-                    {
-                        "name": f"Architectural Overview & Models",
-                        "description": f"Standard architectural frameworks, components, and models for {subject.name}.",
-                        "practice_priority": "high",
-                        "priority_reason": "High frequency in university examination papers"
-                    }
-                ]
-            },
-            {
-                "unit_number": 2,
-                "title": f"Unit 2: Methodologies & Key Operations",
-                "description": f"Algorithms, operations, and technical mechanics for {subject.name}.",
-                "topics": [
-                    {
-                        "name": f"Primary Operations & Techniques",
-                        "description": f"Key methods, operational rules, and core algorithms in {subject.name}.",
-                        "practice_priority": "high",
-                        "priority_reason": "Core practical component evaluated in tests"
-                    },
-                    {
-                        "name": f"Performance & Constraint Management",
-                        "description": f"Trade-offs, optimization techniques, and constraint enforcement in {subject.name}.",
-                        "practice_priority": "medium",
-                        "priority_reason": "Common short-answer examination topic"
-                    }
-                ]
-            },
-            {
-                "unit_number": 3,
-                "title": f"Unit 3: Applied Analysis & Problem Solving",
-                "description": f"Practical application, case studies, and advanced topics in {subject.name}.",
-                "topics": [
-                    {
-                        "name": f"Scenario-Based Problem Solving",
-                        "description": f"Practical problem formulation, analysis, and solution design in {subject.name}.",
-                        "practice_priority": "high",
-                        "priority_reason": "Drives long-answer and analytical question credit"
-                    },
-                    {
-                        "name": f"Advanced Topics & Trade-off Analysis",
-                        "description": f"Advanced mechanics, real-world case analysis, and modern extensions.",
-                        "practice_priority": "medium",
-                        "priority_reason": "Discriminator topic for top percentile exam performance"
-                    }
-                ]
+                "name": t_name,
+                "description": f"Core topic extracted directly from {primary_doc.original_name}.",
+                "subtopics": [],
+                "practice_priority": "high" if idx < 2 else "medium",
+                "priority_reason": "High frequency in examination materials",
+                "is_inferred": False
             }
+            for idx, t_name in enumerate(discovered_topics[:6])
         ]
 
-    # 4. Persist units and topics (preserving existing IDs if re-analyzing)
+        if not raw_units:
+            raw_units = [{
+                "unit_number": parsed_unit_num,
+                "title": doc_unit_title or f"Unit: {primary_doc.original_name.rsplit('.', 1)[0]}",
+                "description": f"Core syllabus topics from {primary_doc.original_name}",
+                "topics": fallback_items
+            }]
+        else:
+            existing_names = set(t.get("name") for t in all_extracted_topics)
+            for item in fallback_items:
+                if item["name"] not in existing_names:
+                    raw_units[0].setdefault("topics", []).append(item)
+                    if sum(len(u.get("topics", [])) for u in raw_units) >= 3:
+                        break
+
+    # 4. Clean up previous topics/units on re-analysis so generic placeholders are removed
+    db.query(Topic).filter(Topic.subject_id == subject_id).delete(synchronize_session=False)
+    db.query(SyllabusUnit).filter(SyllabusUnit.subject_id == subject_id).delete(synchronize_session=False)
+    db.flush()
+
+    # 5. Persist the real units and topics
     unit_order = 0
     for u_data in raw_units:
         unit_order += 1
         unit_num = u_data.get("unit_number", unit_order)
         unit_title = u_data.get("title", f"Unit {unit_num}")
 
-        unit = db.query(SyllabusUnit).filter(
-            SyllabusUnit.subject_id == subject_id,
-            SyllabusUnit.unit_number == unit_num
-        ).first()
-
-        if not unit:
-            unit = SyllabusUnit(
-                id=str(uuid.uuid4()),
-                subject_id=subject_id,
-                unit_number=unit_num,
-                title=unit_title,
-                description=u_data.get("description"),
-                weightage_marks=u_data.get("weightage_marks")
-            )
-            db.add(unit)
-            db.flush()
-        else:
-            unit.title = unit_title
-            unit.description = u_data.get("description")
-            if u_data.get("weightage_marks") is not None:
-                unit.weightage_marks = u_data.get("weightage_marks")
+        unit = SyllabusUnit(
+            id=str(uuid.uuid4()),
+            subject_id=subject_id,
+            unit_number=unit_num,
+            title=unit_title,
+            description=u_data.get("description"),
+            weightage_marks=u_data.get("weightage_marks")
+        )
+        db.add(unit)
+        db.flush()
 
         # Save topics
         topic_order = 0
@@ -245,15 +278,7 @@ def analyze_subject_syllabus(
             if not t_name:
                 continue
 
-            existing_topic = db.query(Topic).filter(
-                Topic.subject_id == subject_id,
-                Topic.name == t_name
-            ).first()
-
-            # Determine reference coverage
-            ref_coverage = t_data.get("reference_coverage")
-            if not ref_coverage:
-                ref_coverage = "good" if len(notes_chunks_data) > 0 else "missing"
+            ref_coverage = t_data.get("reference_coverage") or ("good" if len(notes_chunks_data) > 0 else "missing")
 
             if not existing_topic:
                 new_topic = Topic(

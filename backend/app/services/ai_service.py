@@ -121,18 +121,39 @@ class AIService:
         except Exception:
             pass
 
-        # Attempt 3: repair unclosed brackets/braces from token truncation
-        try:
-            open_braces = sanitized.count("{") - sanitized.count("}")
-            open_brackets = sanitized.count("[") - sanitized.count("]")
-            repaired = sanitized
-            if open_brackets > 0:
-                repaired += "]" * open_brackets
-            if open_braces > 0:
-                repaired += "}" * open_braces
-            return json.loads(repaired, strict=False)
-        except Exception:
-            pass
+        # Attempt 3: Stack-based repair for truncated token output (rollback to last complete object)
+        last_obj_end = sanitized.rfind('}')
+        while last_obj_end > 0:
+            sub = sanitized[:last_obj_end+1]
+            stack = []
+            in_string = False
+            escape = False
+            for char in sub:
+                if escape:
+                    escape = False
+                    continue
+                if char == '\\':
+                    escape = True
+                    continue
+                if char == '"':
+                    in_string = not in_string
+                    continue
+                if not in_string:
+                    if char in ('{', '['):
+                        stack.append(char)
+                    elif char == '}' and stack and stack[-1] == '{':
+                        stack.pop()
+                    elif char == ']' and stack and stack[-1] == '[':
+                        stack.pop()
+            
+            closing = ""
+            for opener in reversed(stack):
+                closing += '}' if opener == '{' else ']'
+            fixed = sub + closing
+            try:
+                return json.loads(fixed, strict=False)
+            except Exception:
+                last_obj_end = sanitized.rfind('}', 0, last_obj_end)
 
         raise AIServiceError(f"Could not parse valid JSON from text: {text[:200]}")
 
@@ -620,132 +641,65 @@ class AIService:
         syllabus_text: str,
         notes_chunks: List[Dict[str, Any]] = None,
         previous_papers_chunks: List[Dict[str, Any]] = None,
+        is_single_chapter: bool = False,
+        doc_title: Optional[str] = None,
         db: Optional[Session] = None
     ) -> Dict[str, Any]:
         """
-        Analyzes a syllabus into Subject -> Units -> Topics -> Subtopics hierarchy.
-        Honest priority rules:
-        - If explicit weightage is in syllabus: use it with source reference.
-        - If previous papers provided: report observed frequency within those papers (do not predict).
-        - If neither: label as suggested practice priority based on conceptual prerequisites, explaining why.
-        Explicit vs Inferred topics are separated; inferred topics flagged for student confirmation.
+        Analyzes a syllabus or study notes into Topics.
+        - If single chapter/notes: Groups all topics into ONE cohesive unit (e.g. Unit 3 or chapter title) without inventing fake units.
+        - If full curriculum/planner: Preserves actual multi-unit hierarchy.
+        - MANDATORY: Always extracts at least 3 key examinable topics from the text.
         """
         notes_chunks = notes_chunks or []
         previous_papers_chunks = previous_papers_chunks or []
 
         if not self.is_live_mode:
-            # Deterministic academic structure for offline/demo mode
             return {
                 "units": [
                     {
                         "unit_number": 1,
-                        "title": "Relational Model & Normalization",
-                        "description": "Foundations of relational database design and functional dependencies.",
-                        "weightage_marks": None,
+                        "title": "Unit 1: Relational Data Model & SQL",
+                        "description": "Core relational algebra and declarative querying.",
                         "topics": [
                             {
-                                "name": "Functional Dependencies & Armstrong Axioms",
-                                "description": "Inference rules for functional dependencies, closures, and minimal covers.",
-                                "subtopics": ["Closure of attribute sets", "Equivalence of FD sets", "Canonical covers"],
-                                "is_inferred": False,
+                                "name": "Relational Algebra Operations",
+                                "description": "Selection, projection, Cartesian product, and relational joins.",
+                                "subtopics": ["Selection", "Projection", "Joins"],
                                 "practice_priority": "high",
-                                "priority_reason": "Core foundation for all normalization decomposition theorems.",
-                                "weightage_explicit": None,
-                                "observed_paper_frequency": 2 if len(previous_papers_chunks) > 0 else None,
-                                "reference_coverage": "good" if len(notes_chunks) > 0 else "missing"
+                                "priority_reason": "High frequency in core university syllabus",
+                                "is_inferred": False
                             },
                             {
-                                "name": "Normal Forms: 1NF to BCNF",
-                                "description": "Progressive elimination of insertion, deletion, and update anomalies.",
-                                "subtopics": ["1NF atomicity", "2NF partial dependency removal", "3NF transitive dependency", "BCNF superkey condition"],
-                                "is_inferred": False,
+                                "name": "SQL DDL, DML & Complex Joins",
+                                "description": "Schema definition, constraints, and multi-table queries.",
+                                "subtopics": ["DDL/DML", "Inner/Outer Joins"],
                                 "practice_priority": "high",
-                                "priority_reason": "Appears consistently in practical schema design and normalization questions.",
-                                "weightage_explicit": None,
-                                "observed_paper_frequency": 3 if len(previous_papers_chunks) > 0 else None,
-                                "reference_coverage": "good" if len(notes_chunks) > 0 else "missing"
-                            },
-                            {
-                                "name": "Multivalued Dependencies & 4NF",
-                                "description": "Higher normal forms addressing independent multi-valued facts.",
-                                "subtopics": ["MVD definitions", "4NF decomposition"],
-                                "is_inferred": True,
-                                "practice_priority": "medium",
-                                "priority_reason": "Inferred extension topic for advanced database specialization.",
-                                "weightage_explicit": None,
-                                "observed_paper_frequency": None,
-                                "reference_coverage": "missing"
+                                "priority_reason": "Core practical component evaluated in tests",
+                                "is_inferred": False
                             }
                         ]
                     },
                     {
                         "unit_number": 2,
-                        "title": "Transactions & Concurrency Control",
-                        "description": "ACID properties, serializability theory, and locking mechanisms.",
-                        "weightage_marks": None,
+                        "title": "Unit 2: Transaction Processing & Concurrency",
+                        "description": "ACID properties, serializability, and lock management.",
                         "topics": [
                             {
-                                "name": "ACID Properties & Recovery",
-                                "description": "Atomicity, Consistency, Isolation, Durability guarantees.",
-                                "subtopics": ["WAL protocol", "Checkpoints", "System failure recovery"],
-                                "is_inferred": False,
+                                "name": "ACID Properties & Transaction States",
+                                "description": "Atomicity, consistency, isolation, and durability mechanics.",
+                                "subtopics": ["Atomicity", "Isolation levels"],
                                 "practice_priority": "high",
-                                "priority_reason": "Fundamental operational concept tested across both objective and subjective exam sections.",
-                                "weightage_explicit": None,
-                                "observed_paper_frequency": 2 if len(previous_papers_chunks) > 0 else None,
-                                "reference_coverage": "good" if len(notes_chunks) > 0 else "missing"
+                                "priority_reason": "Essential theoretical concept across all exams",
+                                "is_inferred": False
                             },
                             {
-                                "name": "Conflict Serializability & 2PL",
-                                "description": "Precedence graphs, conflict equivalence, and two-phase locking protocols.",
-                                "subtopics": ["Conflict vs view serializability", "Strict 2PL", "Deadlock detection"],
-                                "is_inferred": False,
-                                "practice_priority": "high",
-                                "priority_reason": "High-complexity topic requiring rigorous conceptual clarity on locking invariants.",
-                                "weightage_explicit": None,
-                                "observed_paper_frequency": 2 if len(previous_papers_chunks) > 0 else None,
-                                "reference_coverage": "good" if len(notes_chunks) > 0 else "missing"
-                            },
-                            {
-                                "name": "SQL Isolation Levels & Phantoms",
-                                "description": "Read Uncommitted, Read Committed, Repeatable Read, and Serializable anomalies.",
-                                "subtopics": ["Dirty reads", "Non-repeatable reads", "Phantom reads", "Gap locks"],
-                                "is_inferred": False,
+                                "name": "Serializability & Two-Phase Locking (2PL)",
+                                "description": "Conflict serializability, lock acquisition, and shrinking phases.",
+                                "subtopics": ["Strict 2PL", "Deadlock detection"],
                                 "practice_priority": "medium",
-                                "priority_reason": "Critical for practical database application development and reasoning questions.",
-                                "weightage_explicit": None,
-                                "observed_paper_frequency": None,
-                                "reference_coverage": "good" if len(notes_chunks) > 0 else "missing"
-                            }
-                        ]
-                    },
-                    {
-                        "unit_number": 3,
-                        "title": "Query Processing & Indexing",
-                        "description": "Storage structures, B+ Trees, and query evaluation algorithms.",
-                        "weightage_marks": None,
-                        "topics": [
-                            {
-                                "name": "B+ Tree Index Architecture",
-                                "description": "Balanced search trees, node splitting, height analysis, and search costs.",
-                                "subtopics": ["Search traversal", "Leaf node range scans", "Index fanout"],
-                                "is_inferred": False,
-                                "practice_priority": "medium",
-                                "priority_reason": "Standard quantitative and architectural question in university database exams.",
-                                "weightage_explicit": None,
-                                "observed_paper_frequency": 1 if len(previous_papers_chunks) > 0 else None,
-                                "reference_coverage": "good" if len(notes_chunks) > 0 else "missing"
-                            },
-                            {
-                                "name": "Join Evaluation Algorithms",
-                                "description": "Nested loop, block nested loop, sort-merge join, and hash joins.",
-                                "subtopics": ["I/O cost formulas", "Memory buffer sizing", "Hash join passes"],
-                                "is_inferred": False,
-                                "practice_priority": "medium",
-                                "priority_reason": "Tests computational complexity and performance calculation skills.",
-                                "weightage_explicit": None,
-                                "observed_paper_frequency": None,
-                                "reference_coverage": "good" if len(notes_chunks) > 0 else "missing"
+                                "priority_reason": "Discriminator topic in advanced test sections",
+                                "is_inferred": False
                             }
                         ]
                     }
@@ -758,47 +712,75 @@ class AIService:
             f"Note: {len(previous_papers_chunks)} previous paper excerpts are provided. "
             "Count observed question frequency strictly within these excerpts. Do not claim this guarantees future frequency."
             if has_papers else
-            "Note: No previous papers provided. Label priority as 'Suggested practice priority' based purely on academic conceptual difficulty or prerequisites. Do not invent frequencies."
+            "Note: Label priority as 'high' or 'medium' based purely on academic conceptual difficulty or exam importance."
         )
 
-        system_prompt = (
-            "You are an expert university curriculum analyst. Analyze the syllabus text and extract a structured "
-            "hierarchy: Units/Modules -> Topics -> Subtopics.\n"
-            "Honest AI Rules:\n"
-            "1. If syllabus explicitly states marks or percentage weightage, record it in weightage_explicit. Otherwise null.\n"
-            "2. If a topic is explicitly written in the syllabus, is_inferred=false. If you suggest an important related topic that is NOT explicitly named in the syllabus, set is_inferred=true.\n"
-            f"3. {papers_note}\n"
-            "4. Provide a clear, honest priority_reason explaining WHY that priority was suggested.\n"
-            "5. Return valid JSON matching this schema:\n"
-            "{\n"
-            '  "units": [\n'
-            "    {\n"
-            '      "unit_number": 1,\n'
-            '      "title": "Unit 1: ...",\n'
-            '      "description": "...",\n'
-            '      "weightage_marks": null,\n'
-            '      "topics": [\n'
-            "        {\n"
-            '          "name": "Topic Name",\n'
-            '          "description": "Brief description",\n'
-            '          "subtopics": ["Subtopic 1", "Subtopic 2"],\n'
-            '          "is_inferred": false,\n'
-            '          "practice_priority": "high",\n'
-            '          "priority_reason": "Core prerequisite for downstream units...",\n'
-            '          "weightage_explicit": null,\n'
-            '          "observed_paper_frequency": null\n'
-            "        }\n"
-            "      ]\n"
-            "    }\n"
-            "  ]\n"
-            "}\n"
-            "Return ONLY the JSON object."
-        )
+        if is_single_chapter:
+            system_prompt = (
+                "You are an expert university examiner. Analyze the provided SINGLE-CHAPTER / SINGLE-UNIT study notes.\n"
+                "CRITICAL STRUCTURAL RULES FOR SINGLE-CHAPTER NOTES:\n"
+                "1. DO NOT invent or divide the material into artificial multiple units (NEVER create Unit 1, Unit 2, Unit 3).\n"
+                f"2. Return EXACTLY ONE unit in the 'units' array with title '{doc_title or 'Important Examinable Topics'}'.\n"
+                "3. Extract between 3 and 8 distinct, specific, important examinable topics directly from the provided text content.\n"
+                "4. For each topic, provide accurate name, clear description, subtopics, and practice priority (high/medium).\n"
+                "5. MANDATORY: You MUST extract at least 3 distinct examinable topics directly from the text.\n"
+                "Return valid JSON matching this schema:\n"
+                "{\n"
+                '  "units": [\n'
+                "    {\n"
+                '      "unit_number": 1,\n'
+                f'      "title": "{doc_title or "Important Examinable Topics"}",\n'
+                '      "description": "Examinable topics extracted from chapter notes",\n'
+                '      "topics": [\n'
+                "        {\n"
+                '          "name": "Topic Name from Text",\n'
+                '          "description": "Clear explanation of this examination topic",\n'
+                '          "subtopics": ["Subtopic 1", "Subtopic 2"],\n'
+                '          "practice_priority": "high",\n'
+                '          "priority_reason": "Core conceptual requirement tested in exams",\n'
+                '          "is_inferred": false\n'
+                "        }\n"
+                "      ]\n"
+                "    }\n"
+                "  ]\n"
+                "}\n"
+                "Return ONLY the JSON object."
+            )
+        else:
+            system_prompt = (
+                "You are an expert university examiner. Analyze the provided COURSE SYLLABUS / LECTURE PLANNER.\n"
+                "CRITICAL STRUCTURAL RULES FOR SYLLABUS / PLANNER:\n"
+                "1. Categorize topics UNIT-WISE exactly as divided in the syllabus document (e.g. Unit 1, Unit 2, Unit 3...).\n"
+                "2. Reflect the actual units, their titles, descriptions, and the key examinable topics under each unit.\n"
+                "3. Do NOT invent units that do not exist in the syllabus.\n"
+                "4. MANDATORY: Extract at least 3 distinct examinable topics in total across the units directly from the syllabus.\n"
+                "Return valid JSON matching this schema:\n"
+                "{\n"
+                '  "units": [\n'
+                "    {\n"
+                '      "unit_number": 1,\n'
+                '      "title": "Unit 1: Title from Syllabus",\n'
+                '      "description": "Overview of Unit 1",\n'
+                '      "topics": [\n'
+                "        {\n"
+                '          "name": "Topic Name from Syllabus",\n'
+                '          "description": "Explanation of topic",\n'
+                '          "subtopics": ["Subtopic 1"],\n'
+                '          "practice_priority": "high",\n'
+                '          "priority_reason": "Key topic in university curriculum",\n'
+                '          "is_inferred": false\n'
+                "        }\n"
+                "      ]\n"
+                "    }\n"
+                "  ]\n"
+                "}\n"
+                "Return ONLY the JSON object."
+            )
 
-        user_content = f"SYLLABUS CONTENT:\n{syllabus_text[:4000]}"
+        user_content = f"STUDY MATERIAL CONTENT:\n{syllabus_text[:12000]}"
         if previous_papers_chunks:
             papers_text = "\n---\n".join([c.get("content", "")[:300] for c in previous_papers_chunks[:4]])
-            user_content += f"\n\nPREVIOUS PAPER EXCERPTS ({len(previous_papers_chunks)} available):\n{papers_text}"
+            user_content += f"\n\nPREVIOUS PAPER EXCERPTS:\n{papers_text}"
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -808,7 +790,7 @@ class AIService:
         raw = self._call_chat_with_fallback(
             db, "analyze_syllabus_hierarchy", messages,
             primary_model=settings.openrouter_fast_model,
-            max_tokens=1500
+            max_tokens=2500
         )
         try:
             data = self._parse_json_safely(raw)

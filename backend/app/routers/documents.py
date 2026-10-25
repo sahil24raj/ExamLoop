@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from backend.app.database import get_db
-from backend.app.models import Document, DocumentChunk, Subject, User
+from backend.app.models import Document, DocumentChunk, Subject, User, Topic
 from backend.app.schemas import DocumentResponse, DocumentChunkResponse
 from backend.app.services.storage_service import storage_service
 from backend.app.services.document_service import document_service, DocumentExtractionError
@@ -81,6 +81,16 @@ async def upload_document(
         doc.status = "ready"
         db.commit()
         db.refresh(doc)
+
+        # Auto-trigger topic extraction if no topics exist yet for this subject
+        existing_topics_count = db.query(Topic).filter(Topic.subject_id == subject_id).count()
+        if existing_topics_count == 0:
+            try:
+                from backend.app.routers.topics import analyze_subject_syllabus
+                analyze_subject_syllabus(subject_id=subject_id, db=db, user=user)
+            except Exception:
+                pass
+
         return doc
 
     except DocumentExtractionError as e:
@@ -156,6 +166,16 @@ def paste_document_text(
 
     db.commit()
     db.refresh(doc)
+
+    # Auto-trigger topic extraction if no topics exist yet for this subject
+    existing_topics_count = db.query(Topic).filter(Topic.subject_id == subject_id).count()
+    if existing_topics_count == 0:
+        try:
+            from backend.app.routers.topics import analyze_subject_syllabus
+            analyze_subject_syllabus(subject_id=subject_id, db=db, user=user)
+        except Exception:
+            pass
+
     return doc
 
 @router.get("/subjects/{subject_id}/documents", response_model=List[DocumentResponse])

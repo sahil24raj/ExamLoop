@@ -182,6 +182,23 @@ function SubjectWorkspaceContent() {
       await api.uploadDocument(subjectId, file, selectedRole);
       const docs = await api.listDocuments(subjectId);
       setDocuments(docs);
+
+      // Refresh units immediately in case auto-extraction completed
+      try {
+        const freshUnits = await api.listUnits(subjectId);
+        if (freshUnits && freshUnits.length > 0) {
+          setUnits(freshUnits);
+          const allIds = new Set<string>();
+          freshUnits.forEach(unit => {
+            unit.topics.forEach(t => {
+              if (!t.is_excluded) allIds.add(t.id);
+            });
+          });
+          setSelectedTopicIds(allIds);
+        }
+      } catch {
+        // units will be polled by background effect
+      }
     } catch (err: any) {
       setError(err.message || "Failed to upload document");
     } finally {
@@ -502,7 +519,7 @@ function SubjectWorkspaceContent() {
             <div>
               <h2 className="text-base font-bold text-[#F9F9F9] flex items-center gap-2">
                 <Layers className="w-4 h-4 text-[#24EACE]" />
-                Curriculum Topics & Practice Selection
+                {units.length <= 1 ? "Important Topics & Practice Selection" : "Curriculum Topics & Practice Selection"}
               </h2>
               <p className="text-xs text-[#A7B8AE]">
                 {selectedTopicIds.size} of {allTopics.length} topic(s) selected for next practice test
@@ -542,16 +559,18 @@ function SubjectWorkspaceContent() {
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <select
-                value={selectedUnitFilter}
-                onChange={(e) => setSelectedUnitFilter(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-[#26382D] bg-[#142019] text-[#F9F9F9] text-xs"
-              >
-                <option value="all">All Units</option>
-                {units.map(u => (
-                  <option key={u.id} value={u.id}>{u.title}</option>
-                ))}
-              </select>
+              {units.length > 1 && (
+                <select
+                  value={selectedUnitFilter}
+                  onChange={(e) => setSelectedUnitFilter(e.target.value)}
+                  className="px-3 py-1.5 rounded-xl border border-[#26382D] bg-[#142019] text-[#F9F9F9] text-xs"
+                >
+                  <option value="all">All Units</option>
+                  {units.map(u => (
+                    <option key={u.id} value={u.id}>{u.title}</option>
+                  ))}
+                </select>
+              )}
 
               <select
                 value={priorityFilter}
@@ -613,9 +632,14 @@ function SubjectWorkspaceContent() {
                   {/* Unit Title Bar */}
                   <div className="px-5 py-3.5 bg-[#142019] border-b border-[#26382D] flex items-center justify-between">
                     <div>
-                      <span className="text-xs font-bold text-[#F9F9F9] flex items-center gap-2">
+                      <span className="text-xs font-bold text-[#F9F9F9] flex items-center gap-2 flex-wrap">
                         <span className="w-2 h-2 rounded-full bg-[#24EACE]" />
                         {u.title}
+                        {units.length === 1 && (
+                          <span className="text-[10px] font-semibold text-[#A3FF70] bg-[#0D2418] border border-[#1C4D34] px-2 py-0.5 rounded-md">
+                            Single Chapter Notes
+                          </span>
+                        )}
                       </span>
                       {u.description && (
                         <p className="text-[11px] text-[#A7B8AE] mt-0.5">{u.description}</p>
@@ -626,7 +650,7 @@ function SubjectWorkspaceContent() {
                       onClick={() => selectUnitTopics(u)}
                       className="text-[11px] font-bold text-[#24EACE] hover:text-[#A3FF70] transition"
                     >
-                      Select Unit
+                      {units.length === 1 ? "Select All in Chapter" : "Select Unit"}
                     </button>
                   </div>
 
