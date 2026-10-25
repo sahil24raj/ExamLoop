@@ -46,7 +46,8 @@ def root():
         "status": "online",
         "app": settings.app_name,
         "docs": "/docs",
-        "health": "/api/health"
+        "health": "/api/health",
+        "version": "1.0.1-eval-fixed"
     }
 
 @app.get("/api/health")
@@ -55,5 +56,6 @@ def health_check():
         "status": "healthy",
         "app": settings.app_name,
         "env": settings.app_env,
-        "demo_mode": settings.demo_mode
+        "demo_mode": settings.demo_mode,
+        "version": "1.0.1-eval-fixed"
     }
