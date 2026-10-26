@@ -20,16 +20,24 @@ class Settings(BaseModel):
     database_url: str = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'examloop.db'}")
     storage_dir: Path = Path(os.getenv("STORAGE_DIR", str(BASE_DIR / "storage")))
     
-    # OpenRouter AI / NVIDIA Nemotron Configuration
+    # OmniRoute & OpenRouter Gateway Configuration
+    omniroute_api_key: str = os.getenv("OMNIROUTE_API_KEY", "")
+    omniroute_base_url: str = os.getenv("OMNIROUTE_BASE_URL", "http://localhost:20128/v1")
+
     openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY", "")
     openrouter_base_url: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     
-    # Model hierarchy:
-    # 1st Priority: NVIDIA Nemotron 3 Ultra 550B (Best-in-class free tier MoE model)
-    # Fallback: NVIDIA Nemotron 3.5 Lightning (Fast free tier model)
-    openrouter_fast_model: str = os.getenv("OPENROUTER_FAST_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free")
+    # Specialized Model Configuration Per Task:
+    # 1. Topic Extraction: High speed, clean JSON output
+    model_topic_extraction: str = os.getenv("MODEL_TOPIC_EXTRACTION", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free")
+    # 2. Test Generation: 550B MoE deep rubric & question synthesis
+    model_test_generation: str = os.getenv("MODEL_TEST_GENERATION", "nvidia/nemotron-3-ultra-550b-a55b:free")
+    # 3. Answer Evaluation & Grading: Precise rubric scoring and misconception diagnosis
+    model_evaluation: str = os.getenv("MODEL_EVALUATION", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free")
+
+    openrouter_fast_model: str = os.getenv("OPENROUTER_FAST_MODEL", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free")
     openrouter_reasoning_model: str = os.getenv("OPENROUTER_REASONING_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free")
-    openrouter_fallback_model: str = os.getenv("OPENROUTER_FALLBACK_MODEL", "nvidia/nemotron-3.5-lightning:free")
+    openrouter_fallback_model: str = os.getenv("OPENROUTER_FALLBACK_MODEL", "openrouter/free")
 
     # Embeddings / Retrieval
     embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "lexical")

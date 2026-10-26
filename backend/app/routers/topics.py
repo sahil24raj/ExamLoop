@@ -250,6 +250,34 @@ def analyze_subject_syllabus(
                     if sum(len(u.get("topics", [])) for u in raw_units) >= 3:
                         break
 
+    # Final Strict Rule: Minimum 3 topics mandatory
+    if sum(len(u.get("topics", [])) for u in raw_units) < 3:
+        if not raw_units:
+            raw_units = [{
+                "unit_number": parsed_unit_num,
+                "title": doc_unit_title or f"Unit: {primary_doc.original_name.rsplit('.', 1)[0]}",
+                "description": f"Core examinable topics from {primary_doc.original_name}",
+                "topics": []
+            }]
+        mandatory_fallbacks = [
+            (f"{subject.name} - Core Architecture & Theoretical Foundations", "Fundamental theoretical concepts and architecture required for exams."),
+            (f"{subject.name} - Essential Mechanics & Key Operations", "Mechanisms, algorithms, and practical procedures evaluated in tests."),
+            (f"{subject.name} - Analytical Reasoning & Constraints", "Edge-cases, analytical constraints, and real-world system tradeoffs.")
+        ]
+        curr_names = set(t.get("name") for u in raw_units for t in u.get("topics", []))
+        for m_name, m_desc in mandatory_fallbacks:
+            if m_name not in curr_names:
+                raw_units[0].setdefault("topics", []).append({
+                    "name": m_name,
+                    "description": m_desc,
+                    "subtopics": [],
+                    "practice_priority": "high",
+                    "priority_reason": "Mandatory foundational topic for comprehensive practice",
+                    "is_inferred": False
+                })
+            if sum(len(u.get("topics", [])) for u in raw_units) >= 3:
+                break
+
     # 4. Clean up previous topics/units on re-analysis so generic placeholders are removed
     db.query(Topic).filter(Topic.subject_id == subject_id).delete(synchronize_session=False)
     db.query(SyllabusUnit).filter(SyllabusUnit.subject_id == subject_id).delete(synchronize_session=False)
@@ -282,6 +310,11 @@ def analyze_subject_syllabus(
                 continue
 
             ref_coverage = t_data.get("reference_coverage") or ("good" if len(notes_chunks_data) > 0 else "missing")
+
+            existing_topic = db.query(Topic).filter(
+                Topic.subject_id == subject_id,
+                Topic.name == t_name
+            ).first()
 
             if not existing_topic:
                 new_topic = Topic(

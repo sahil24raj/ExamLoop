@@ -22,6 +22,8 @@ class AIServiceError(Exception):
 class AIService:
     def __init__(self):
         self.client: Optional[OpenAI] = None
+        self.omniroute_client: Optional[OpenAI] = None
+
         if settings.openrouter_api_key:
             self.client = OpenAI(
                 base_url=settings.openrouter_base_url,
@@ -30,13 +32,24 @@ class AIService:
                     "HTTP-Referer": "https://examloop.local",
                     "X-Title": "ExamLoop AI Examination Engine"
                 },
-                timeout=25.0,
+                timeout=20.0,
                 max_retries=0
             )
 
+        if settings.omniroute_api_key:
+            try:
+                self.omniroute_client = OpenAI(
+                    base_url=settings.omniroute_base_url,
+                    api_key=settings.omniroute_api_key,
+                    timeout=20.0,
+                    max_retries=0
+                )
+            except Exception:
+                pass
+
     @property
     def is_live_mode(self) -> bool:
-        return bool(self.client and settings.openrouter_api_key and not settings.demo_mode)
+        return bool((self.client or self.omniroute_client) and not settings.demo_mode)
 
     def get_mode_indicator(self) -> str:
         return "Live AI" if self.is_live_mode else "Demo data"
@@ -166,18 +179,54 @@ class AIService:
         temperature: float = 0.2,
         max_tokens: int = 1500
     ) -> str:
-        if not self.is_live_mode or not self.client:
-            raise AIServiceError("Live AI requested but OpenRouter API key is not configured or demo mode is active.")
+        if not self.is_live_mode:
+            raise AIServiceError("Live AI requested but no AI gateway or OpenRouter API key is active.")
 
-        # Candidate models hierarchy: priority chain with verified active free models
-        candidate_models = [
-            primary_model or settings.openrouter_fast_model,
-            settings.openrouter_fast_model,
-            "nvidia/nemotron-3-ultra-550b-a55b:free",
-            "nvidia/nemotron-3.5-lightning:free",
-            "cohere/north-mini-code:free",
-            settings.openrouter_fallback_model,
-        ]
+        # Task-specific model hierarchy for maximum speed and task accuracy:
+        if endpoint_name in ("analyze_syllabus_hierarchy", "extract_concepts"):
+            task_primary = primary_model or settings.model_topic_extraction
+            candidate_models = [
+                task_primary,
+                settings.model_test_generation,
+                "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+                "nvidia/nemotron-3-ultra-550b-a55b:free",
+                "openrouter/free",
+                "google/gemma-4-31b-it:free",
+                "xingchen-agi/xing4.0-29b-a4b:free",
+                settings.openrouter_fallback_model
+            ]
+        elif endpoint_name in ("generate_custom_test", "generate_questions"):
+            task_primary = primary_model or settings.model_test_generation
+            candidate_models = [
+                task_primary,
+                settings.model_topic_extraction,
+                "nvidia/nemotron-3-ultra-550b-a55b:free",
+                "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+                "openrouter/free",
+                "google/gemma-4-26b-a4b-it:free",
+                "xingchen-agi/xing4.0-29b-a4b:free",
+                settings.openrouter_fallback_model
+            ]
+        elif endpoint_name in ("grade_subjective_answer", "evaluate_attempt"):
+            task_primary = primary_model or settings.model_evaluation
+            candidate_models = [
+                task_primary,
+                settings.model_test_generation,
+                "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+                "nvidia/nemotron-3-ultra-550b-a55b:free",
+                "openrouter/free",
+                "google/gemma-4-31b-it:free",
+                settings.openrouter_fallback_model
+            ]
+        else:
+            candidate_models = [
+                primary_model or settings.openrouter_fast_model,
+                settings.openrouter_fast_model,
+                settings.openrouter_reasoning_model,
+                "openrouter/free",
+                settings.openrouter_fallback_model
+            ]
+
         # Deduplicate while preserving priority order
         unique_models = []
         for m in candidate_models:
@@ -185,54 +234,58 @@ class AIService:
                 unique_models.append(m)
 
         last_error = None
+        # Available clients in priority order: OpenRouter -> OmniRoute
+        active_clients = [c for c in [self.client, self.omniroute_client] if c is not None]
+
         for model in unique_models:
-            start_time = time.time()
-            try:
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    timeout=22.0
-                )
-                duration_ms = int((time.time() - start_time) * 1000)
-                prompt_tokens = response.usage.prompt_tokens if response.usage else 0
-                completion_tokens = response.usage.completion_tokens if response.usage else 0
+            for client in active_clients:
+                start_time = time.time()
+                try:
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        timeout=18.0
+                    )
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    prompt_tokens = response.usage.prompt_tokens if response.usage else 0
+                    completion_tokens = response.usage.completion_tokens if response.usage else 0
 
-                msg = response.choices[0].message
-                raw_content = msg.content or ""
-                # Handle reasoning models where output or thought process is populated in reasoning
-                if not raw_content.strip() and hasattr(msg, "reasoning") and getattr(msg, "reasoning", None):
-                    raw_content = msg.reasoning
+                    msg = response.choices[0].message
+                    raw_content = msg.content or ""
+                    # Handle reasoning models where output or thought process is populated in reasoning
+                    if not raw_content.strip() and hasattr(msg, "reasoning") and getattr(msg, "reasoning", None):
+                        raw_content = msg.reasoning
 
-                if not raw_content.strip():
-                    raise AIServiceError(f"Model {model} returned empty response.")
+                    if not raw_content.strip():
+                        raise AIServiceError(f"Model {model} returned empty response.")
 
-                self._log_request(
-                    db=db,
-                    model_name=model,
-                    endpoint=endpoint_name,
-                    duration_ms=duration_ms,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    status="success"
-                )
-                return raw_content
+                    self._log_request(
+                        db=db,
+                        model_name=model,
+                        endpoint=endpoint_name,
+                        duration_ms=duration_ms,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        status="success"
+                    )
+                    return raw_content
 
-            except Exception as e:
-                duration_ms = int((time.time() - start_time) * 1000)
-                self._log_request(
-                    db=db,
-                    model_name=model,
-                    endpoint=endpoint_name,
-                    duration_ms=duration_ms,
-                    prompt_tokens=0,
-                    completion_tokens=0,
-                    status="failed",
-                    error_message=str(e)
-                )
-                last_error = e
-                # Fall through to next model in hierarchy
+                except Exception as e:
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    self._log_request(
+                        db=db,
+                        model_name=model,
+                        endpoint=endpoint_name,
+                        duration_ms=duration_ms,
+                        prompt_tokens=0,
+                        completion_tokens=0,
+                        status="failed",
+                        error_message=str(e)
+                    )
+                    last_error = e
+                    # Try next client or model
 
         raise AIServiceError(f"All candidate models failed [{endpoint_name}]. Last error: {str(last_error)}")
 
@@ -271,7 +324,7 @@ class AIService:
             {"role": "user", "content": f"Study excerpts:\n\n{prompt_content}"}
         ]
 
-        raw = self._call_chat_with_fallback(db, "extract_concepts", messages, primary_model=settings.openrouter_fast_model)
+        raw = self._call_chat_with_fallback(db, "extract_concepts", messages, primary_model=settings.model_topic_extraction)
         cleaned = self._clean_json_response(raw)
         try:
             data = json.loads(cleaned)
@@ -348,7 +401,7 @@ class AIService:
 
         raw = self._call_chat_with_fallback(
             db, "generate_questions", messages,
-            primary_model=settings.openrouter_reasoning_model,
+            primary_model=settings.model_test_generation,
             max_tokens=2200
         )
         try:
@@ -570,7 +623,7 @@ class AIService:
 
             raw = self._call_chat_with_fallback(
                 db, "grade_subjective_answer", messages,
-                primary_model=settings.openrouter_reasoning_model,
+                primary_model=settings.model_evaluation,
                 max_tokens=1500
             )
             data = self._parse_json_safely(raw)
@@ -800,8 +853,8 @@ class AIService:
 
         raw = self._call_chat_with_fallback(
             db, "analyze_syllabus_hierarchy", messages,
-            primary_model=settings.openrouter_fast_model,
-            max_tokens=2500
+            primary_model=settings.model_topic_extraction,
+            max_tokens=2200
         )
         try:
             data = self._parse_json_safely(raw)
@@ -1050,10 +1103,13 @@ class AIService:
             {"role": "user", "content": user_content}
         ]
 
+        total_q = max(1, mcq_count + very_short_count + short_count + long_count)
+        opt_tokens = min(3200, max(1000, total_q * 360))
+
         raw = self._call_chat_with_fallback(
             db, "generate_custom_test", messages,
-            primary_model=settings.openrouter_reasoning_model,
-            max_tokens=3500
+            primary_model=settings.model_test_generation,
+            max_tokens=opt_tokens
         )
         try:
             data = self._parse_json_safely(raw)
