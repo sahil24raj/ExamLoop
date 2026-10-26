@@ -237,6 +237,9 @@ class AIService:
         # Available clients in priority order: OpenRouter -> OmniRoute
         active_clients = [c for c in [self.client, self.omniroute_client] if c is not None]
 
+        # Allow adequate timeout for large extractions (up to 4000 tokens)
+        call_timeout = max(20.0, min(50.0, max_tokens / 80.0))
+
         for model in unique_models:
             for client in active_clients:
                 start_time = time.time()
@@ -246,7 +249,7 @@ class AIService:
                         messages=messages,
                         temperature=temperature,
                         max_tokens=max_tokens,
-                        timeout=18.0
+                        timeout=call_timeout
                     )
                     duration_ms = int((time.time() - start_time) * 1000)
                     prompt_tokens = response.usage.prompt_tokens if response.usage else 0
@@ -812,12 +815,14 @@ class AIService:
             )
         else:
             system_prompt = (
-                "You are an expert university examiner. Analyze the provided COURSE SYLLABUS / LECTURE PLANNER.\n"
-                "CRITICAL STRUCTURAL RULES FOR SYLLABUS / PLANNER:\n"
-                "1. Categorize topics UNIT-WISE exactly as divided in the syllabus document (e.g. Unit 1, Unit 2, Unit 3...).\n"
-                "2. Reflect the actual units, their titles, descriptions, and the key examinable topics under each unit.\n"
-                "3. Do NOT invent units that do not exist in the syllabus.\n"
-                "4. MANDATORY: Extract at least 3 distinct examinable topics in total across the units directly from the syllabus.\n"
+                "You are an expert university examiner and curriculum architect. Analyze the provided COURSE SYLLABUS / LECTURE PLANNER.\n"
+                "CRITICAL STRUCTURAL RULES FOR SYLLABUS / LECTURE PLANNER:\n"
+                "1. EXHAUSTIVE EXTRACTION ACROSS THE ENTIRE DOCUMENT: You MUST analyze the material from start to finish.\n"
+                "   If the document covers multiple units (e.g., Unit 1, Unit 2, Unit 3, Unit 4, Unit 5), you MUST extract every single unit present!\n"
+                "   NEVER stop early after Unit 1 or Unit 2. Extract Units 1 through 5 (or however many are in the document).\n"
+                "2. Reflect the actual unit numbers, titles, and exact examinable topics taught under each unit.\n"
+                "3. For each unit, extract at least 2 to 6 key examinable topics with clear descriptions, core subtopics, and practice priority.\n"
+                "4. MANDATORY: Extract all major examinable topics faithfully from the syllabus without skipping any unit.\n"
                 "Return valid JSON matching this schema:\n"
                 "{\n"
                 '  "units": [\n'
@@ -829,19 +834,19 @@ class AIService:
                 "        {\n"
                 '          "name": "Topic Name from Syllabus",\n'
                 '          "description": "Explanation of topic",\n'
-                '          "subtopics": ["Subtopic 1"],\n'
+                '          "subtopics": ["Subtopic 1", "Subtopic 2"],\n'
                 '          "practice_priority": "high",\n'
-                '          "priority_reason": "Key topic in university curriculum",\n'
+                '          "priority_reason": "Key conceptual component in curriculum",\n'
                 '          "is_inferred": false\n'
                 "        }\n"
                 "      ]\n"
                 "    }\n"
                 "  ]\n"
                 "}\n"
-                "Return ONLY the JSON object."
+                "Return ONLY the valid JSON object."
             )
 
-        user_content = f"STUDY MATERIAL CONTENT:\n{syllabus_text[:12000]}"
+        user_content = f"STUDY MATERIAL CONTENT:\n{syllabus_text[:50000]}"
         if previous_papers_chunks:
             papers_text = "\n---\n".join([c.get("content", "")[:300] for c in previous_papers_chunks[:4]])
             user_content += f"\n\nPREVIOUS PAPER EXCERPTS:\n{papers_text}"
@@ -854,7 +859,7 @@ class AIService:
         raw = self._call_chat_with_fallback(
             db, "analyze_syllabus_hierarchy", messages,
             primary_model=settings.model_topic_extraction,
-            max_tokens=2200
+            max_tokens=4000
         )
         try:
             data = self._parse_json_safely(raw)

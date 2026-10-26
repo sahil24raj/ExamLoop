@@ -71,20 +71,23 @@ def analyze_subject_syllabus(
             detail="Extracted syllabus text is empty. Please verify the uploaded document has readable text."
         )
 
-    # Sample chunks across multi-page / large documents (first pages, evenly spaced chapter pages, and summary pages)
+    # Gather chunks across the document. For topic extraction from lecture planners and syllabi,
+    # we need full coverage of all units (e.g. Unit 1 to Unit 5).
     total_chunks = len(all_chunks)
-    if total_chunks <= 30:
+    if total_chunks <= 50:
         selected_chunks = all_chunks
     else:
+        # For large documents, select up to 50 chunks distributed across the entire document
+        # to ensure no unit (e.g. Unit 4, Unit 5) at the middle or end is skipped.
         indices = set()
-        # First 8 chunks (intro / syllabus / table of contents / chapter overview)
-        for i in range(min(8, total_chunks)):
+        # Initial 10 chunks (syllabus overview / table of contents / early units)
+        for i in range(min(10, total_chunks)):
             indices.add(i)
-        # Evenly sampled across all chapters
-        step = max(1, total_chunks // 25)
+        # Evenly sampled across all middle pages and later units
+        step = max(1, total_chunks // 35)
         for i in range(step, total_chunks - 5, step):
             indices.add(i)
-        # Last 5 chunks (summary / review)
+        # Final chunks (last units / closing modules)
         for i in range(max(0, total_chunks - 5), total_chunks):
             indices.add(i)
         selected_chunks = [all_chunks[i] for i in sorted(indices)]
@@ -127,39 +130,43 @@ def analyze_subject_syllabus(
     doc_name = primary_doc.original_name.lower()
     
     import re
-    # Check if document title explicitly mentions a single unit/chapter (e.g., "CS U3.pdf", "Unit 3", "Unit_3", "Ch 2", "Chapter 4")
-    unit_match = re.search(r"\b(?:unit|u|chapter|ch|module|lecture|lec)[\s_-]*([0-9IVX]+)\b", doc_name, re.IGNORECASE)
+    # Check if doc title explicitly indicates a single unit ONLY (e.g., "Unit 3 only.pdf", "CS U3.pdf")
+    # But NOT a range like "Unit 1 to 5", "Units 1-5", "Unit 1-Unit 5"
+    has_unit_range = bool(re.search(r"\b(?:unit|units|u|chapter|ch|module)[\s_-]*[0-9IVX]+[\s_-]*(?:to|-|through)[\s_-]*[0-9IVX]+\b", doc_name, re.IGNORECASE))
     
-    # Check if doc is explicitly named as a complete syllabus or lecture planner
+    unit_match = None
+    if not has_unit_range:
+        unit_match = re.search(r"\b(?:unit|u|chapter|ch|module)[\s_-]*([0-9IVX]+)\b", doc_name, re.IGNORECASE)
+    
+    # Check if doc is explicitly named as a syllabus, planner, or curriculum
     is_planner_or_full_syllabus = any(term in doc_name for term in [
-        "syllabus", "curriculum", "lecture_plan", "lecture plan", "course_outline", "course outline", "planner", "scheme"
-    ])
+        "syllabus", "curriculum", "lecture_plan", "lecture plan", "course_outline", "course outline", "planner", "scheme", "lesson_plan", "lesson plan"
+    ]) or has_unit_range
     
-    # Check major unit headings in text
-    major_units_in_text = re.findall(r"(?:^|\n)\s*(?:UNIT|MODULE|CHAPTER)\s*[-:]?\s*([0-9IVX]+)", syllabus_text, re.IGNORECASE)
+    # Scan text for distinct unit headings across the entire syllabus
+    # Matches patterns like "UNIT 1", "UNIT-I", "Unit 2:", "MODULE 3", "CHAPTER 4", "Unit V"
+    major_units_in_text = re.findall(r"(?:^|\n|\b)\s*(?:UNIT|MODULE|CHAPTER)\s*[-:]?\s*([0-9IVX]+)\b", syllabus_text, re.IGNORECASE)
     unique_major_units = set(u.upper() for u in major_units_in_text)
 
     is_single_chapter = True
     u_num = None
-    if unit_match:
-        # Document title explicitly specifies a unit/chapter (e.g., CS U3.pdf -> Unit 3)
+
+    if len(unique_major_units) >= 2 or is_planner_or_full_syllabus:
+        # Multi-unit curriculum or planner covering multiple units (e.g. Unit 1 to 5)
+        is_single_chapter = False
+        doc_unit_title = f"{subject.name} Curriculum & Syllabus"
+    elif unit_match and len(unique_major_units) <= 1:
+        # Single unit notes (e.g. "Unit 3 Notes")
         is_single_chapter = True
         u_num = unit_match.group(1).upper()
         doc_unit_title = f"Unit {u_num}: {subject.name}"
-    elif is_planner_or_full_syllabus and len(unique_major_units) >= 2:
-        # True multi-unit syllabus or lecture planner
-        is_single_chapter = False
-        doc_unit_title = f"{subject.name} Syllabus"
-    elif primary_doc.document_role == "notes" or "notes" in doc_name or "slide" in doc_name:
+    elif (primary_doc.document_role == "notes" or "notes" in doc_name or "slide" in doc_name) and len(unique_major_units) < 2:
         is_single_chapter = True
         doc_unit_title = f"{primary_doc.original_name.rsplit('.', 1)[0]}"
-    elif len(unique_major_units) >= 3 and not unit_match:
-        # Multi-unit syllabus with at least 3 distinct major unit headings
-        is_single_chapter = False
-        doc_unit_title = f"{subject.name} Syllabus"
     else:
-        is_single_chapter = True
-        doc_unit_title = f"{primary_doc.original_name.rsplit('.', 1)[0]}"
+        # Default: if 2 or more units detected, it's multi-unit
+        is_single_chapter = (len(unique_major_units) < 2)
+        doc_unit_title = f"{subject.name} Syllabus" if not is_single_chapter else f"{primary_doc.original_name.rsplit('.', 1)[0]}"
 
     parsed_unit_num = int(u_num) if u_num and u_num.isdigit() else 1
 
@@ -167,7 +174,7 @@ def analyze_subject_syllabus(
     raw_units = []
     try:
         analysis_result = ai_service.analyze_syllabus_hierarchy(
-            syllabus_text=syllabus_text[:24000],
+            syllabus_text=syllabus_text[:50000],
             notes_chunks=notes_chunks_data[:12],
             previous_papers_chunks=paper_chunks_data[:6],
             is_single_chapter=is_single_chapter,
