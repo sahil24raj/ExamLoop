@@ -351,7 +351,12 @@ export const api = {
   // Documents
   listDocuments: (subjectId: string) =>
     apiFetch<DocumentItem[]>(`/api/subjects/${subjectId}/documents`),
-  uploadDocument: async (subjectId: string, file: File, documentRole: "syllabus" | "notes" | "previous_paper" = "notes") => {
+  uploadDocument: async (
+    subjectId: string,
+    file: File,
+    documentRole: "syllabus" | "notes" | "previous_paper" = "notes",
+    retryCount = 0
+  ): Promise<DocumentItem> => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("document_role", documentRole);
@@ -366,16 +371,25 @@ export const api = {
         body: formData,
       });
     } catch (netErr: any) {
+      if (retryCount < 2 && typeof window !== "undefined") {
+        await new Promise((r) => setTimeout(r, 2500));
+        return api.uploadDocument(subjectId, file, documentRole, retryCount + 1);
+      }
       if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
         throw new Error(
-          `Backend server unreachable at ${API_BASE || 'default'}. Please set NEXT_PUBLIC_API_URL in your Vercel settings to your deployed FastAPI backend URL.`
+          `Backend server waking up or reconnecting at ${API_BASE}. Free-tier servers take 30-45s to wake up on first request. Please wait 10 seconds and try again.`
         );
       }
       throw new Error(`Cannot connect to Backend at ${API_BASE}. Make sure FastAPI is running (python -m uvicorn backend.app.main:app --port 8000).`);
     }
 
+    if ((res.status === 502 || res.status === 503 || res.status === 504) && retryCount < 2 && typeof window !== "undefined") {
+      await new Promise((r) => setTimeout(r, 2500));
+      return api.uploadDocument(subjectId, file, documentRole, retryCount + 1);
+    }
+
     if (!res.ok) {
-      let msg = "Upload failed";
+      let msg = `Upload failed (status ${res.status})`;
       try {
         const err = await res.json();
         msg = err.detail || msg;

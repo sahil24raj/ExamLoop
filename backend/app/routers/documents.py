@@ -1,5 +1,6 @@
 import os
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+import logging
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
@@ -13,6 +14,27 @@ from backend.app.auth import get_current_user, get_user_accessible_subject
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
+
+def _background_topic_extraction(subject_id: str, user_id: str):
+    """Safely triggers syllabus topic analysis in the background without blocking file upload HTTP response."""
+    try:
+        from backend.app.database import SessionLocal
+        from backend.app.models import Topic, User
+        from backend.app.routers.topics import analyze_subject_syllabus
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return
+            existing_topics_count = db.query(Topic).filter(Topic.subject_id == subject_id).count()
+            if existing_topics_count == 0:
+                analyze_subject_syllabus(subject_id=subject_id, db=db, user=user)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning("Background topic extraction note: %s", e)
+
 class PasteTextRequest(BaseModel):
     title: str = "Pasted Syllabus"
     content: str
@@ -23,6 +45,7 @@ router = APIRouter(prefix="/api", tags=["Documents"])
 @router.post("/subjects/{subject_id}/documents/upload", response_model=DocumentResponse)
 async def upload_document(
     subject_id: str,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     document_role: str = Form("notes"), # "syllabus" | "notes" | "previous_paper"
     db: Session = Depends(get_db),
@@ -75,14 +98,10 @@ async def upload_document(
         db.commit()
         db.refresh(doc)
 
-        # Auto-trigger topic extraction if no topics exist yet for this subject
+        # Auto-trigger topic extraction in background if no topics exist yet for this subject
         existing_topics_count = db.query(Topic).filter(Topic.subject_id == subject_id).count()
         if existing_topics_count == 0:
-            try:
-                from backend.app.routers.topics import analyze_subject_syllabus
-                analyze_subject_syllabus(subject_id=subject_id, db=db, user=user)
-            except Exception:
-                pass
+            background_tasks.add_task(_background_topic_extraction, subject.id, user.id)
 
         return doc
 
@@ -103,6 +122,7 @@ async def upload_document(
 def paste_document_text(
     subject_id: str,
     payload: PasteTextRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
@@ -160,14 +180,10 @@ def paste_document_text(
     db.commit()
     db.refresh(doc)
 
-    # Auto-trigger topic extraction if no topics exist yet for this subject
+    # Auto-trigger topic extraction in background if no topics exist yet for this subject
     existing_topics_count = db.query(Topic).filter(Topic.subject_id == subject_id).count()
     if existing_topics_count == 0:
-        try:
-            from backend.app.routers.topics import analyze_subject_syllabus
-            analyze_subject_syllabus(subject_id=subject_id, db=db, user=user)
-        except Exception:
-            pass
+        background_tasks.add_task(_background_topic_extraction, subject.id, user.id)
 
     return doc
 
